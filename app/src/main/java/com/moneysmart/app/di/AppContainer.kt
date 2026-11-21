@@ -5,6 +5,7 @@ import com.moneysmart.app.data.local.MoneySmartDatabase
 import com.moneysmart.app.data.local.SettingsDataStore
 import com.moneysmart.app.data.remote.ExchangeRateApiClient
 import com.moneysmart.app.data.remote.GeminiApiClient
+import com.moneysmart.app.data.remote.MarketPriceApiClient
 import com.moneysmart.app.data.repository.BackupRepository
 import com.moneysmart.app.data.repository.MoneyManagerImporter
 import com.moneysmart.app.data.repository.MoneyRepository
@@ -17,11 +18,13 @@ class AppContainer(context: Context) {
     val settingsDataStore: SettingsDataStore = SettingsDataStore(appContext)
     val geminiApiClient: GeminiApiClient = GeminiApiClient()
     val exchangeRateApiClient: ExchangeRateApiClient = ExchangeRateApiClient()
+    val marketPriceApiClient: MarketPriceApiClient = MarketPriceApiClient()
 
     val repository: MoneyRepository = MoneyRepository(
         db = database,
         settingsDataStore = settingsDataStore,
-        exchangeRateApiClient = exchangeRateApiClient
+        exchangeRateApiClient = exchangeRateApiClient,
+        marketPriceApiClient = marketPriceApiClient
     )
 
     val backupRepository: BackupRepository = BackupRepository(

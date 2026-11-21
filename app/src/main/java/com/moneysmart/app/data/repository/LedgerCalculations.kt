@@ -61,6 +61,27 @@ object LedgerCalculations {
         return (balance * 100.0).roundToLong() / 100.0
     }
 
+    fun computeAutoRechargeShortfall(
+        currentBalance: Double,
+        minBalance: Double = 0.0
+    ): Double {
+        if (currentBalance >= minBalance - 0.005) return 0.0
+        val raw = minBalance - currentBalance
+        return (raw * 100.0).roundToLong() / 100.0
+    }
+
+    fun computeCalibratedInitialBalance(
+        account: AccountEntity,
+        transactions: List<TransactionEntity>,
+        targetCurrentBalance: Double,
+        baseCurrency: String = account.currency
+    ): Double {
+        val computedNow = computeAccountBalance(account, transactions, baseCurrency)
+        val txNetDelta = computedNow - account.initialBalance
+        val calibrated = targetCurrentBalance - txNetDelta
+        return (calibrated * 100.0).roundToLong() / 100.0
+    }
+
     fun findDuplicateTransaction(
         existing: List<TransactionEntity>,
         amount: Double,

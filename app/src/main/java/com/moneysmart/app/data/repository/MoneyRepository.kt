@@ -1,9 +1,11 @@
 package com.moneysmart.app.data.repository
 
 import androidx.room.withTransaction
+import com.moneysmart.app.data.local.DefaultSeedData
 import com.moneysmart.app.data.local.MoneySmartDatabase
 import com.moneysmart.app.data.local.SettingsDataStore
 import com.moneysmart.app.data.local.entity.AccountEntity
+import com.moneysmart.app.data.local.entity.AccountType
 import com.moneysmart.app.data.local.entity.BudgetEntity
 import com.moneysmart.app.data.local.entity.CategoryEntity
 import com.moneysmart.app.data.local.entity.ExchangeRateEntity
@@ -13,14 +15,21 @@ import com.moneysmart.app.data.local.entity.TransactionEntity
 import com.moneysmart.app.data.local.entity.TransactionSource
 import com.moneysmart.app.data.local.entity.TransactionType
 import com.moneysmart.app.data.remote.ExchangeRateApiClient
+import com.moneysmart.app.data.remote.MarketPriceApiClient
 import com.moneysmart.app.util.FormatUtils
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import java.time.YearMonth
+import kotlin.math.roundToLong
 
 data class AccountWithBalance(
     val account: AccountEntity,
-    val currentBalance: Double
+    val currentBalance: Double,
+    val balanceInBaseCurrency: Double = currentBalance,
+    val isLiveMarketValue: Boolean = false
 )
 
 data class BudgetProgress(
@@ -41,10 +50,12 @@ data class BudgetAlertEvent(
     val isExceeded: Boolean
 )
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class MoneyRepository(
     private val db: MoneySmartDatabase,
     private val settingsDataStore: SettingsDataStore,
-    private val exchangeRateApiClient: ExchangeRateApiClient
+    private val exchangeRateApiClient: ExchangeRateApiClient,
+    private val marketPriceApiClient: MarketPriceApiClient
 ) {
     private val accountDao = db.accountDao()
     private val categoryDao = db.categoryDao()
@@ -64,19 +75,43 @@ class MoneyRepository(
     fun observeBudgetsForMonth(yearMonth: String): Flow<List<BudgetEntity>> = budgetDao.observeBudgetsForMonth(yearMonth)
 
     fun observeAccountsWithBalances(): Flow<List<AccountWithBalance>> {
+        val settingsAndRates = settingsDataStore.settingsFlow.flatMapLatest { settings ->
+            exchangeRateDao.observeRatesForBase(settings.baseCurrency.uppercase()).map { rates ->
+                settings to rates.associateBy { it.targetCurrency.uppercase() }
+            }
+        }
         return combine(
             accountDao.observeActiveAccounts(),
             transactionDao.observeAllActiveTransactions(),
-            settingsDataStore.settingsFlow
-        ) { accounts, transactions, settings ->
+            settingsAndRates
+        ) { accounts, transactions, (settings, ratesMap) ->
             accounts.map { acc ->
+                val ledgerBalance = LedgerCalculations.computeAccountBalance(
+                    account = acc,
+                    transactions = transactions,
+                    baseCurrency = settings.baseCurrency
+                )
+                val hasLiveValue = acc.type == AccountType.INVESTMENT &&
+                    !acc.marketSymbol.isNullOrBlank() &&
+                    (acc.holdingUnits ?: 0.0) > 0.0 &&
+                    acc.lastSyncedMarketValue != null
+                val displayBalance = if (hasLiveValue) acc.lastSyncedMarketValue!! else ledgerBalance
+                val rateToBase = if (acc.currency.equals(settings.baseCurrency, ignoreCase = true)) {
+                    1.0
+                } else {
+                    val apiRate = ratesMap[acc.currency.uppercase()]?.rate
+                    LedgerCalculations.exchangeRateToBaseFromApiRate(
+                        txCurrency = acc.currency,
+                        baseCurrency = settings.baseCurrency,
+                        apiRateBaseToTx = apiRate
+                    )
+                }
+                val baseBalance = LedgerCalculations.computeBaseAmount(displayBalance, rateToBase)
                 AccountWithBalance(
                     account = acc,
-                    currentBalance = LedgerCalculations.computeAccountBalance(
-                        account = acc,
-                        transactions = transactions,
-                        baseCurrency = settings.baseCurrency
-                    )
+                    currentBalance = displayBalance,
+                    balanceInBaseCurrency = baseBalance,
+                    isLiveMarketValue = hasLiveValue
                 )
             }
         }
@@ -125,6 +160,75 @@ class MoneyRepository(
         }
     }
 
+    suspend fun saveAccountWithTargetBalance(account: AccountEntity, targetCurrentBalance: Double): Long {
+        if (account.id == 0L) {
+            return accountDao.insert(account.copy(initialBalance = targetCurrentBalance))
+        }
+        val settings = settingsDataStore.getCurrentSettings()
+        val activeTxs = transactionDao.getAllActiveTransactions()
+        val calibratedInitial = LedgerCalculations.computeCalibratedInitialBalance(
+            account = account,
+            transactions = activeTxs,
+            targetCurrentBalance = targetCurrentBalance,
+            baseCurrency = settings.baseCurrency
+        )
+        accountDao.update(account.copy(initialBalance = calibratedInitial))
+        return account.id
+    }
+
+    suspend fun applyScreenshotSnapshotBalances(): Int {
+        val settings = settingsDataStore.getCurrentSettings()
+        return DefaultSeedData.applySnapshotBalances(db, settings.baseCurrency)
+    }
+
+    suspend fun syncLiveInvestmentValues(): Result<Int> {
+        val activeAccounts = accountDao.getActiveAccounts()
+        val liveTargets = activeAccounts.filter {
+            it.type == AccountType.INVESTMENT &&
+                !it.marketSymbol.isNullOrBlank() &&
+                (it.holdingUnits ?: 0.0) > 0.0
+        }
+        if (liveTargets.isEmpty()) return Result.success(0)
+
+        syncExchangeRates(force = false)
+        val settings = settingsDataStore.getCurrentSettings()
+        var syncedCount = 0
+        var lastError: Throwable? = null
+        val now = System.currentTimeMillis()
+
+        for (acc in liveTargets) {
+            val units = acc.holdingUnits ?: continue
+            val symbol = acc.marketSymbol ?: continue
+            val quoteRes = marketPriceApiClient.fetchQuote(symbol)
+            if (quoteRes.isFailure) {
+                lastError = quoteRes.exceptionOrNull()
+                continue
+            }
+            val quote = quoteRes.getOrThrow()
+            val priceInAccountCurrency = if (quote.currency.equals(acc.currency, ignoreCase = true)) {
+                quote.price
+            } else {
+                val quoteToBase = getExchangeRateToBase(quote.currency, settings.baseCurrency)
+                val accToBase = getExchangeRateToBase(acc.currency, settings.baseCurrency)
+                if (accToBase > 0.0) quote.price * (quoteToBase / accToBase) else quote.price
+            }
+            val liveValue = ((units * priceInAccountCurrency) * 100.0).roundToLong() / 100.0
+            accountDao.update(
+                acc.copy(
+                    lastSyncedMarketValue = liveValue,
+                    lastMarketSyncAt = now
+                )
+            )
+            syncedCount++
+        }
+
+        return if (syncedCount > 0 || lastError == null) {
+            Result.success(syncedCount)
+        } else {
+            Result.failure(lastError!!)
+        }
+    }
+
     suspend fun archiveAccount(account: AccountEntity) {
         accountDao.update(account.copy(isArchived = true))
     }
@@ -144,12 +248,56 @@ class MoneyRepository(
         val now = System.currentTimeMillis()
         val computedBase = LedgerCalculations.computeBaseAmount(tx.amount, tx.exchangeRateToBase)
         val clean = tx.copy(baseAmount = computedBase, updatedAt = now)
-        return if (clean.id == 0L) {
-            transactionDao.insert(clean.copy(createdAt = now))
-        } else {
+        if (clean.id != 0L) {
             transactionDao.update(clean)
-            clean.id
+            return clean.id
         }
+
+        val insertedId = transactionDao.insert(clean.copy(createdAt = now))
+        if (clean.type == TransactionType.EXPENSE) {
+            triggerAutoRechargeIfNeeded(clean, now)
+        }
+        return insertedId
+    }
+
+    private suspend fun triggerAutoRechargeIfNeeded(expenseTx: TransactionEntity, now: Long) {
+        val account = accountDao.getById(expenseTx.accountId) ?: return
+        val sourceId = account.autoRechargeSourceAccountId ?: return
+        if (sourceId == account.id) return
+        val sourceAccount = accountDao.getById(sourceId) ?: return
+
+        val settings = settingsDataStore.getCurrentSettings()
+        val activeTxs = transactionDao.getAllActiveTransactions()
+        val currentBalance = LedgerCalculations.computeAccountBalance(
+            account = account,
+            transactions = activeTxs,
+            baseCurrency = settings.baseCurrency
+        )
+        val shortfall = LedgerCalculations.computeAutoRechargeShortfall(
+            currentBalance = currentBalance,
+            minBalance = account.autoRechargeMinBalance
+        )
+        if (shortfall <= 0.0) return
+
+        val rateToBase = getExchangeRateToBase(account.currency, settings.baseCurrency)
+        val transfer = TransactionEntity(
+            type = TransactionType.TRANSFER,
+            amount = shortfall,
+            currency = account.currency,
+            exchangeRateToBase = rateToBase,
+            baseAmount = LedgerCalculations.computeBaseAmount(shortfall, rateToBase),
+            accountId = sourceAccount.id,
+            toAccountId = account.id,
+            categoryId = null,
+            merchant = "Auto-Recharge (${sourceAccount.name} → ${account.name})",
+            note = "Automatic top-up when ${account.name} went below ${account.autoRechargeMinBalance}",
+            timestamp = expenseTx.timestamp + 1_000L,
+            source = TransactionSource.RECURRING,
+            needsReview = false,
+            createdAt = now,
+            updatedAt = now
+        )
+        transactionDao.insert(transfer)
     }
 
     suspend fun softDeleteTransaction(id: Long) {

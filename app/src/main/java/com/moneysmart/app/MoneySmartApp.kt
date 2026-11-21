@@ -7,6 +7,7 @@ import com.moneysmart.app.di.AppContainer
 import com.moneysmart.app.notification.TransactionAlertNotifier
 import com.moneysmart.app.worker.AutoBackupWorker
 import com.moneysmart.app.worker.ExchangeRateSyncWorker
+import com.moneysmart.app.worker.InvestmentSyncWorker
 import com.moneysmart.app.worker.RecurringTransactionWorker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -28,8 +29,10 @@ class MoneySmartApp : Application() {
         appScope.launch {
             val settings = container.settingsDataStore.getCurrentSettings()
             DefaultSeedData.seedDefaultsIfEmpty(container.database, settings.baseCurrency)
+            DefaultSeedData.ensurePayLahAutoRechargeLinked(container.database)
             container.repository.processDueRecurringTransactions()
             container.repository.syncExchangeRates(force = false)
+            container.repository.syncLiveInvestmentValues()
             if (settings.autoBackupEnabled && settings.backupFolderUri.isNotBlank()) {
                 AutoBackupWorker.schedulePeriodic(this@MoneySmartApp)
             }
@@ -37,6 +40,7 @@ class MoneySmartApp : Application() {
 
         ExchangeRateSyncWorker.schedulePeriodic(this)
         RecurringTransactionWorker.schedulePeriodic(this)
+        InvestmentSyncWorker.schedulePeriodic(this)
     }
 
     companion object {

@@ -127,6 +127,16 @@ class MoneySmartViewModel(application: Application) : AndroidViewModel(applicati
         viewModelScope.launch { repository.saveAccount(account) }
     }
 
+    fun saveAccountWithTargetBalance(account: AccountEntity, targetCurrentBalance: Double) {
+        viewModelScope.launch {
+            repository.saveAccountWithTargetBalance(account, targetCurrentBalance)
+        }
+    }
+
+    suspend fun applyScreenshotBalancesNow(): Int = repository.applyScreenshotSnapshotBalances()
+
+    suspend fun syncLiveInvestmentsNow(): Result<Int> = repository.syncLiveInvestmentValues()
+
     fun archiveAccount(account: AccountEntity) {
         viewModelScope.launch { repository.archiveAccount(account) }
     }

@@ -27,5 +27,11 @@ data class AccountEntity(
     val colorHex: Long = 0xFF0D6E52L,
     val includeInTotal: Boolean = true,
     val isArchived: Boolean = false,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val autoRechargeSourceAccountId: Long? = null,
+    val autoRechargeMinBalance: Double = 0.0,
+    val marketSymbol: String? = null,
+    val holdingUnits: Double? = null,
+    val lastSyncedMarketValue: Double? = null,
+    val lastMarketSyncAt: Long = 0L
 )

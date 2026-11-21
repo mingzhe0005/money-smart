@@ -5,6 +5,8 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.moneysmart.app.data.local.dao.AccountDao
 import com.moneysmart.app.data.local.dao.BudgetDao
 import com.moneysmart.app.data.local.dao.CategoryDao
@@ -30,7 +32,7 @@ import com.moneysmart.app.data.local.entity.TransactionEntity
         RawNotificationEntity::class,
         ExchangeRateEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -44,6 +46,17 @@ abstract class MoneySmartDatabase : RoomDatabase() {
     abstract fun exchangeRateDao(): ExchangeRateDao
 
     companion object {
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE accounts ADD COLUMN autoRechargeSourceAccountId INTEGER")
+                db.execSQL("ALTER TABLE accounts ADD COLUMN autoRechargeMinBalance REAL NOT NULL DEFAULT 0.0")
+                db.execSQL("ALTER TABLE accounts ADD COLUMN marketSymbol TEXT")
+                db.execSQL("ALTER TABLE accounts ADD COLUMN holdingUnits REAL")
+                db.execSQL("ALTER TABLE accounts ADD COLUMN lastSyncedMarketValue REAL")
+                db.execSQL("ALTER TABLE accounts ADD COLUMN lastMarketSyncAt INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         @Volatile
         private var INSTANCE: MoneySmartDatabase? = null
 
@@ -54,6 +67,7 @@ abstract class MoneySmartDatabase : RoomDatabase() {
                     MoneySmartDatabase::class.java,
                     "money_smart.db"
                 )
+                    .addMigrations(MIGRATION_1_2)
                     .fallbackToDestructiveMigration()
                     .build()
                     .also { INSTANCE = it }
