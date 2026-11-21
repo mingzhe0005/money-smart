@@ -261,6 +261,53 @@ class MoneyRepository(
         accountDao.update(account.copy(isArchived = true))
     }
 
+    suspend fun deleteAccountPermanently(accountId: Long) {
+        accountDao.deleteById(accountId)
+    }
+
+    suspend fun rechargeAccountNowIfNegative(accountId: Long): Double {
+        val account = accountDao.getById(accountId) ?: return 0.0
+        val sourceId = account.autoRechargeSourceAccountId ?: return 0.0
+        if (sourceId == account.id) return 0.0
+        val sourceAccount = accountDao.getById(sourceId) ?: return 0.0
+
+        val settings = settingsDataStore.getCurrentSettings()
+        val activeTxs = transactionDao.getAllActiveTransactions()
+        val currentBalance = LedgerCalculations.computeAccountBalance(
+            account = account,
+            transactions = activeTxs,
+            baseCurrency = settings.baseCurrency
+        )
+        val shortfall = LedgerCalculations.computeAutoRechargeShortfall(
+            currentBalance = currentBalance,
+            minBalance = account.autoRechargeMinBalance
+        )
+        if (shortfall <= 0.0) return 0.0
+
+        val now = System.currentTimeMillis()
+        val rateToBase = getExchangeRateToBase(account.currency, settings.baseCurrency)
+        transactionDao.insert(
+            TransactionEntity(
+                type = TransactionType.TRANSFER,
+                amount = shortfall,
+                currency = account.currency,
+                exchangeRateToBase = rateToBase,
+                baseAmount = LedgerCalculations.computeBaseAmount(shortfall, rateToBase),
+                accountId = sourceAccount.id,
+                toAccountId = account.id,
+                categoryId = null,
+                merchant = "Auto-Recharge (${sourceAccount.name} → ${account.name})",
+                note = "Wallet top-up to cover negative balance",
+                timestamp = now,
+                source = TransactionSource.RECURRING,
+                needsReview = false,
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+        return shortfall
+    }
+
     suspend fun saveCategory(category: CategoryEntity): Long {
         return if (category.id == 0L) categoryDao.insert(category) else {
             categoryDao.update(category)
@@ -276,16 +323,16 @@ class MoneyRepository(
         val now = System.currentTimeMillis()
         val computedBase = LedgerCalculations.computeBaseAmount(tx.amount, tx.exchangeRateToBase)
         val clean = tx.copy(baseAmount = computedBase, updatedAt = now)
-        if (clean.id != 0L) {
+        val savedId = if (clean.id != 0L) {
             transactionDao.update(clean)
-            return clean.id
+            clean.id
+        } else {
+            transactionDao.insert(clean.copy(createdAt = now))
         }
-
-        val insertedId = transactionDao.insert(clean.copy(createdAt = now))
         if (clean.type == TransactionType.EXPENSE) {
             triggerAutoRechargeIfNeeded(clean, now)
         }
-        return insertedId
+        return savedId
     }
 
     private suspend fun triggerAutoRechargeIfNeeded(expenseTx: TransactionEntity, now: Long) {
@@ -767,5 +814,98 @@ class MoneyRepository(
             splitBillDao.deleteParticipantsForBill(billId)
             splitBillDao.deleteBill(billId)
         }
+    }
+
+    suspend fun linkExistingIncomeAsReimbursements(
+        expenseTxId: Long,
+        incomeTxIds: List<Long>
+    ): Int {
+        if (incomeTxIds.isEmpty()) return 0
+        val now = System.currentTimeMillis()
+        var linkedCount = 0
+
+        db.withTransaction {
+            val expenseTx = transactionDao.getById(expenseTxId) ?: return@withTransaction
+            if (expenseTx.isDeleted || expenseTx.type != TransactionType.EXPENSE) return@withTransaction
+
+            var billId = expenseTx.splitBillId
+            if (billId == null) {
+                billId = splitBillDao.insertBill(
+                    SplitBillEntity(
+                        title = expenseTx.merchant.ifBlank { "Shared Expense" },
+                        totalAmount = expenseTx.amount,
+                        myShareAmount = (expenseTx.amount - expenseTx.reimbursedAmount).coerceAtLeast(0.0),
+                        currency = expenseTx.currency,
+                        paidAccountId = expenseTx.accountId,
+                        categoryId = expenseTx.categoryId,
+                        expenseTransactionId = expenseTx.id,
+                        timestamp = expenseTx.timestamp,
+                        note = expenseTx.note,
+                        createdAt = now
+                    )
+                )
+            }
+
+            var addedAmount = 0.0
+            var addedBaseAmount = 0.0
+            val newParticipants = mutableListOf<SplitParticipantEntity>()
+
+            for (incId in incomeTxIds.distinct()) {
+                val incTx = transactionDao.getById(incId) ?: continue
+                if (incTx.isDeleted || incTx.type != TransactionType.INCOME || incTx.isReimbursement) continue
+
+                val amountInExpenseCurrency = if (incTx.currency.equals(expenseTx.currency, ignoreCase = true)) {
+                    incTx.amount
+                } else if (expenseTx.exchangeRateToBase > 0.0) {
+                    incTx.baseAmount / expenseTx.exchangeRateToBase
+                } else {
+                    incTx.baseAmount
+                }
+
+                transactionDao.update(
+                    incTx.copy(
+                        isReimbursement = true,
+                        splitBillId = billId,
+                        updatedAt = now
+                    )
+                )
+
+                val friendName = incTx.merchant.ifBlank { incTx.note.ifBlank { "Friend" } }
+                newParticipants.add(
+                    SplitParticipantEntity(
+                        splitBillId = billId,
+                        friendName = friendName,
+                        owedAmount = (amountInExpenseCurrency * 100.0).roundToLong() / 100.0,
+                        paidAmount = (amountInExpenseCurrency * 100.0).roundToLong() / 100.0,
+                        isSettled = true,
+                        repaidAccountId = incTx.accountId,
+                        repaymentTransactionId = incTx.id,
+                        settledAt = incTx.timestamp
+                    )
+                )
+                addedAmount += amountInExpenseCurrency
+                addedBaseAmount += incTx.baseAmount
+                linkedCount++
+            }
+
+            if (newParticipants.isNotEmpty()) {
+                splitBillDao.insertParticipants(newParticipants)
+                val totalReimbursed = ((expenseTx.reimbursedAmount + addedAmount) * 100.0).roundToLong() / 100.0
+                val totalReimbursedBase = ((expenseTx.reimbursedBaseAmount + addedBaseAmount) * 100.0).roundToLong() / 100.0
+                transactionDao.update(
+                    expenseTx.copy(
+                        reimbursedAmount = totalReimbursed,
+                        reimbursedBaseAmount = totalReimbursedBase,
+                        splitBillId = billId,
+                        updatedAt = now
+                    )
+                )
+                splitBillDao.getBillById(billId)?.let { bill ->
+                    val newMyShare = ((bill.totalAmount - totalReimbursed).coerceAtLeast(0.0) * 100.0).roundToLong() / 100.0
+                    splitBillDao.updateBill(bill.copy(myShareAmount = newMyShare))
+                }
+            }
+        }
+        return linkedCount
     }
 }

@@ -131,12 +131,22 @@ class MoneyManagerImporter(
                     it.parentId == null && it.type == type && it.name.trim().equals(parentClean, ignoreCase = true)
                 }
                 if (parent == null) {
+                    val palette = listOf(
+                        0xFFEF4444L, 0xFFF59E0BL, 0xFF10B981L, 0xFF0EA5E9L,
+                        0xFF8B5CF6L, 0xFFEC4899L, 0xFF14B8A6L, 0xFF6366F1L,
+                        0xFFF97316L, 0xFF06B6D4L, 0xFFF43F5EL, 0xFF84CC16L
+                    )
+                    val colorHex = if (type == CategoryType.INCOME) {
+                        0xFF059669L
+                    } else {
+                        palette[allCategories.size % palette.size]
+                    }
                     val newParent = CategoryEntity(
                         name = parentClean,
                         type = type,
                         parentId = null,
                         iconName = if (type == CategoryType.INCOME) "Payments" else "Category",
-                        colorHex = if (type == CategoryType.INCOME) 0xFF059669L else 0xFF2563EBL,
+                        colorHex = colorHex,
                         sortOrder = allCategories.size + 1
                     )
                     val id = categoryDao.insert(newParent)

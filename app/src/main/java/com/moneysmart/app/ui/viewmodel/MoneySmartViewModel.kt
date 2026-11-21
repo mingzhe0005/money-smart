@@ -185,6 +185,28 @@ class MoneySmartViewModel(application: Application) : AndroidViewModel(applicati
         viewModelScope.launch { repository.archiveAccount(account) }
     }
 
+    fun deleteAccountPermanently(accountId: Long) {
+        viewModelScope.launch { repository.deleteAccountPermanently(accountId) }
+    }
+
+    fun rechargeAccountNow(accountId: Long, onRecharged: (Double) -> Unit = {}) {
+        viewModelScope.launch {
+            val recharged = repository.rechargeAccountNowIfNegative(accountId)
+            onRecharged(recharged)
+        }
+    }
+
+    fun linkFriendRepaymentsToExpense(
+        expenseTxId: Long,
+        incomeTxIds: List<Long>,
+        onDone: (Int) -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            val count = repository.linkExistingIncomeAsReimbursements(expenseTxId, incomeTxIds)
+            onDone(count)
+        }
+    }
+
     fun saveCategory(category: CategoryEntity) {
         viewModelScope.launch { repository.saveCategory(category) }
     }

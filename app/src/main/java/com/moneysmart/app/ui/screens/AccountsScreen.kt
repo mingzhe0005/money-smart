@@ -38,6 +38,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -260,51 +261,71 @@ fun AccountsScreen(
                                 showAccountDialog = true
                             }
                     ) {
-                        Row(
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(14.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(CircleShape)
-                                    .background(accent.copy(alpha = 0.14f)),
-                                contentAlignment = Alignment.Center
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(
-                                    imageVector = IconCatalog.resolve(acc.iconName),
-                                    contentDescription = null,
-                                    tint = accent
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = acc.name,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Medium
-                                )
-                                Text(
-                                    text = subtitle,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Column(horizontalAlignment = Alignment.End) {
-                                Text(
-                                    text = FormatUtils.formatMoney(item.currentBalance, acc.currency),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (item.currentBalance < 0) ExpenseRed else MaterialTheme.colorScheme.onSurface
-                                )
-                                if (!acc.currency.equals(settings.baseCurrency, ignoreCase = true)) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(CircleShape)
+                                        .background(accent.copy(alpha = 0.14f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = IconCatalog.resolve(acc.iconName),
+                                        contentDescription = null,
+                                        tint = accent
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = "≈ ${FormatUtils.formatMoney(item.balanceInBaseCurrency, settings.baseCurrency)}",
-                                        style = MaterialTheme.typography.labelSmall,
+                                        text = acc.name,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    Text(
+                                        text = subtitle,
+                                        style = MaterialTheme.typography.labelMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
+                                }
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Text(
+                                        text = FormatUtils.formatMoney(item.currentBalance, acc.currency),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (item.currentBalance < 0) ExpenseRed else MaterialTheme.colorScheme.onSurface
+                                    )
+                                    if (!acc.currency.equals(settings.baseCurrency, ignoreCase = true)) {
+                                        Text(
+                                            text = "≈ ${FormatUtils.formatMoney(item.balanceInBaseCurrency, settings.baseCurrency)}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                            if (acc.autoRechargeSourceAccountId != null && item.currentBalance < acc.autoRechargeMinBalance - 0.005) {
+                                val srcName = accountNameMap[acc.autoRechargeSourceAccountId] ?: "Linked Bank"
+                                OutlinedButton(
+                                    onClick = {
+                                        viewModel.rechargeAccountNow(acc.id) { amount ->
+                                            if (amount > 0.0) {
+                                                statusBanner = "Auto-recharged ${FormatUtils.formatMoney(amount, acc.currency)} from $srcName → ${acc.name}."
+                                            }
+                                        }
+                                    },
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                                ) {
+                                    Text("Top Up Now from $srcName")
                                 }
                             }
                         }
@@ -327,6 +348,11 @@ fun AccountsScreen(
             onArchive = { account ->
                 viewModel.archiveAccount(account)
                 showAccountDialog = false
+            },
+            onDeletePermanently = { account ->
+                viewModel.deleteAccountPermanently(account.id)
+                showAccountDialog = false
+                statusBanner = "Deleted account '${account.name}'."
             }
         )
     }
@@ -364,7 +390,8 @@ private fun AccountEditorDialog(
     defaultCurrency: String,
     onDismiss: () -> Unit,
     onSave: (AccountEntity, Double) -> Unit,
-    onArchive: (AccountEntity) -> Unit
+    onArchive: (AccountEntity) -> Unit,
+    onDeletePermanently: (AccountEntity) -> Unit
 ) {
     val initial = initialItem?.account
     var name by remember { mutableStateOf(initial?.name ?: "") }
@@ -382,6 +409,7 @@ private fun AccountEditorDialog(
 
     var typeExpanded by remember { mutableStateOf(false) }
     var rechargeExpanded by remember { mutableStateOf(false) }
+    var showRemoveConfirm by remember { mutableStateOf(false) }
 
     val defaultIcon = when (type) {
         AccountType.CASH -> "AccountBalanceWallet"
@@ -563,11 +591,41 @@ private fun AccountEditorDialog(
                 if (initial != null) {
                     TextButton(
                         colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                        onClick = { onArchive(initial) }
-                    ) { Text("Archive") }
+                        onClick = { showRemoveConfirm = true }
+                    ) { Text("Remove") }
                 }
                 TextButton(onClick = onDismiss) { Text("Cancel") }
             }
         }
     )
+
+    if (showRemoveConfirm && initial != null) {
+        AlertDialog(
+            onDismissRequest = { showRemoveConfirm = false },
+            title = { Text("Remove '${initial.name}'?") },
+            text = {
+                Text(
+                    "Choose 'Hide (Archive)' to keep historical records intact without showing it in Accounts, or 'Delete Permanently' to remove the account entry."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                    onClick = {
+                        showRemoveConfirm = false
+                        onDeletePermanently(initial)
+                    }
+                ) { Text("Delete Permanently") }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = {
+                        showRemoveConfirm = false
+                        onArchive(initial)
+                    }) { Text("Hide (Archive)") }
+                    TextButton(onClick = { showRemoveConfirm = false }) { Text("Cancel") }
+                }
+            }
+        )
+    }
 }

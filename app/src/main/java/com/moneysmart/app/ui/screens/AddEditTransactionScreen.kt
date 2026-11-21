@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -19,11 +21,13 @@ import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Groups
+import androidx.compose.material.icons.rounded.Payments
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenuItem
@@ -87,6 +91,7 @@ fun AddEditTransactionScreen(
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val accounts by viewModel.activeAccounts.collectAsStateWithLifecycle()
     val categories by viewModel.categories.collectAsStateWithLifecycle()
+    val allTransactions by viewModel.allTransactions.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
 
     var loadedTx by remember { mutableStateOf<TransactionEntity?>(null) }
@@ -107,6 +112,7 @@ fun AddEditTransactionScreen(
     var showTimePicker by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showSplitDialog by remember { mutableStateOf(false) }
+    var showLinkRepaymentsDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(settings.baseCurrency) {
         if (transactionId == null && loadedTx == null) {
@@ -429,16 +435,28 @@ fun AddEditTransactionScreen(
                 Text(if (loadedTx == null) "Save Transaction" else "Save Changes")
             }
 
-            if (loadedTx != null && loadedTx?.type == TransactionType.EXPENSE && loadedTx?.splitBillId == null) {
+            if (loadedTx != null && loadedTx?.type == TransactionType.EXPENSE) {
                 OutlinedButton(
-                    onClick = { showSplitDialog = true },
+                    onClick = { showLinkRepaymentsDialog = true },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(48.dp)
                 ) {
-                    Icon(Icons.Rounded.Groups, contentDescription = null)
+                    Icon(Icons.Rounded.Payments, contentDescription = null)
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Split This Bill with Friends")
+                    Text("Link Friend Repayments (from Income)")
+                }
+                if (loadedTx?.splitBillId == null) {
+                    OutlinedButton(
+                        onClick = { showSplitDialog = true },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                    ) {
+                        Icon(Icons.Rounded.Groups, contentDescription = null)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Split This Bill with Friends")
+                    }
                 }
             }
         }
@@ -542,6 +560,135 @@ fun AddEditTransactionScreen(
                         onNavigateBack()
                     }
                 )
+            }
+        )
+    }
+
+    if (showLinkRepaymentsDialog && loadedTx != null) {
+        val baseTx = loadedTx!!
+        val accountMap = remember(accounts) { accounts.associateBy { it.id } }
+        val recentIncomeCandidates = remember(allTransactions) {
+            allTransactions.filter {
+                !it.isDeleted && it.type == TransactionType.INCOME && !it.isReimbursement
+            }.sortedByDescending { it.timestamp }.take(40)
+        }
+        var selectedIncomeIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
+        var searchIncome by remember { mutableStateOf("") }
+
+        val visibleCandidates = remember(recentIncomeCandidates, searchIncome, accountMap) {
+            val q = searchIncome.trim()
+            if (q.isEmpty()) recentIncomeCandidates
+            else recentIncomeCandidates.filter { tx ->
+                tx.merchant.contains(q, true) ||
+                    tx.note.contains(q, true) ||
+                    (accountMap[tx.accountId]?.name?.contains(q, true) == true) ||
+                    tx.amount.toString().contains(q)
+            }
+        }
+
+        val selectedSum = recentIncomeCandidates
+            .filter { it.id in selectedIncomeIds }
+            .sumOf { it.amount }
+        val newNetExpense = (baseTx.amount - baseTx.reimbursedAmount - selectedSum).coerceAtLeast(0.0)
+
+        AlertDialog(
+            onDismissRequest = { showLinkRepaymentsDialog = false },
+            title = { Text("Link Friend Transfers") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Pick recent incoming transfers from friends for this expense. They stay in their destination accounts and reduce this expense instead of counting as income.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    OutlinedTextField(
+                        value = searchIncome,
+                        onValueChange = { searchIncome = it },
+                        placeholder = { Text("Search friend, account, or amount...") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Text(
+                        text = "New Net Expense: ${FormatUtils.formatMoney(newNetExpense, baseTx.currency)}",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    if (visibleCandidates.isEmpty()) {
+                        Text(
+                            text = "No unlinked recent income transactions found.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(260.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            items(visibleCandidates, key = { it.id }) { incTx ->
+                                val checked = incTx.id in selectedIncomeIds
+                                val accName = accountMap[incTx.accountId]?.name ?: "Account"
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            selectedIncomeIds = if (checked) {
+                                                selectedIncomeIds - incTx.id
+                                            } else {
+                                                selectedIncomeIds + incTx.id
+                                            }
+                                        }
+                                        .padding(vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Checkbox(
+                                        checked = checked,
+                                        onCheckedChange = { isChecked ->
+                                            selectedIncomeIds = if (isChecked) {
+                                                selectedIncomeIds + incTx.id
+                                            } else {
+                                                selectedIncomeIds - incTx.id
+                                            }
+                                        }
+                                    )
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = incTx.merchant.ifBlank { incTx.note.ifBlank { "Income Transfer" } },
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                        Text(
+                                            text = "$accName · ${FormatUtils.formatDate(incTx.timestamp)}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    Text(
+                                        text = FormatUtils.formatMoney(incTx.amount, incTx.currency),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = selectedIncomeIds.isNotEmpty(),
+                    onClick = {
+                        val ids = selectedIncomeIds.toList()
+                        showLinkRepaymentsDialog = false
+                        viewModel.linkFriendRepaymentsToExpense(baseTx.id, ids) {
+                            onNavigateBack()
+                        }
+                    }
+                ) { Text("Link Selected (${selectedIncomeIds.size})") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLinkRepaymentsDialog = false }) { Text("Cancel") }
             }
         )
     }
