@@ -76,11 +76,20 @@ interface TransactionDao {
     @Query("UPDATE transactions SET isDeleted = 1, updatedAt = :updatedAt WHERE id = :id")
     suspend fun softDelete(id: Long, updatedAt: Long = System.currentTimeMillis())
 
+    @Query("UPDATE transactions SET isDeleted = 1, updatedAt = :updatedAt WHERE id IN (:ids)")
+    suspend fun softDeleteBatch(ids: List<Long>, updatedAt: Long = System.currentTimeMillis())
+
     @Query("UPDATE transactions SET isDeleted = 0, updatedAt = :updatedAt WHERE id = :id")
     suspend fun restore(id: Long, updatedAt: Long = System.currentTimeMillis())
 
+    @Query("UPDATE transactions SET isDeleted = 0, updatedAt = :updatedAt WHERE id IN (:ids)")
+    suspend fun restoreBatch(ids: List<Long>, updatedAt: Long = System.currentTimeMillis())
+
     @Query("UPDATE transactions SET needsReview = 0, updatedAt = :updatedAt WHERE id = :id")
     suspend fun markReviewed(id: Long, updatedAt: Long = System.currentTimeMillis())
+
+    @Query("UPDATE transactions SET needsReview = 0, updatedAt = :updatedAt WHERE id IN (:ids)")
+    suspend fun markReviewedBatch(ids: List<Long>, updatedAt: Long = System.currentTimeMillis())
 
     @Query("DELETE FROM transactions")
     suspend fun deleteAll()

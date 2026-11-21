@@ -1,5 +1,6 @@
 package com.moneysmart.app.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -25,12 +26,18 @@ import androidx.compose.material.icons.automirrored.rounded.ViewList
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.Checklist
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.DoneAll
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.SelectAll
 import androidx.compose.material.icons.rounded.ViewAgenda
 import androidx.compose.material.icons.rounded.WarningAmber
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -47,6 +54,7 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -99,6 +107,7 @@ fun TransactionsScreen(
     viewModel: MoneySmartViewModel,
     onAddTransaction: () -> Unit,
     onEditTransaction: (Long) -> Unit,
+    onBulkDeleted: (List<Long>) -> Unit,
     onOpenAiActivity: () -> Unit,
     onOpenSettings: () -> Unit
 ) {
@@ -128,10 +137,32 @@ fun TransactionsScreen(
     var searchVisible by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var onlyNeedsReview by remember { mutableStateOf(false) }
+    var selectionMode by remember { mutableStateOf(false) }
+    var selectedIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
+    var showBulkDeleteDialog by remember { mutableStateOf(false) }
     var selectedCalendarDate by remember(selectedMonth) {
         mutableStateOf(
             if (selectedMonth == YearMonth.now()) LocalDate.now() else selectedMonth.atDay(1)
         )
+    }
+
+    BackHandler(enabled = selectionMode) {
+        selectionMode = false
+        selectedIds = emptySet()
+    }
+
+    fun enterSelectionWith(txId: Long) {
+        selectionMode = true
+        selectedIds = selectedIds + txId
+    }
+
+    fun toggleSelection(txId: Long) {
+        selectedIds = if (txId in selectedIds) selectedIds - txId else selectedIds + txId
+    }
+
+    fun exitSelectionMode() {
+        selectionMode = false
+        selectedIds = emptySet()
     }
 
     val accountMap = remember(accounts) { accounts.associateBy { it.id } }
@@ -165,51 +196,122 @@ fun TransactionsScreen(
             .sumOf { it.baseAmount }
     }
 
+    val selectableIds = remember(viewMode, filteredMonthTransactions, selectedCalendarDate, zoneId) {
+        when (viewMode) {
+            LedgerViewMode.DAILY -> filteredMonthTransactions.map { it.id }
+            LedgerViewMode.CALENDAR -> filteredMonthTransactions.filter {
+                Instant.ofEpochMilli(it.timestamp).atZone(zoneId).toLocalDate() == selectedCalendarDate
+            }.map { it.id }
+            LedgerViewMode.MONTHLY -> emptyList()
+        }
+    }
+    val hasSelectedNeedsReview = remember(selectedIds, filteredMonthTransactions) {
+        filteredMonthTransactions.any { it.id in selectedIds && it.needsReview }
+    }
+
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text("Money Smart", fontWeight = FontWeight.Bold)
+            if (selectionMode) {
+                TopAppBar(
+                    title = {
                         Text(
-                            text = if (isListenerEnabled && settings.geminiApiKey.isNotBlank()) {
-                                "AI auto-capture active (${settings.allowedPackages.size} apps)"
-                            } else {
-                                "AI capture setup needed"
-                            },
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            text = "${selectedIds.size} selected",
+                            fontWeight = FontWeight.SemiBold
                         )
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { searchVisible = !searchVisible }) {
-                        Icon(
-                            imageVector = if (searchVisible) Icons.Rounded.Close else Icons.Rounded.Search,
-                            contentDescription = "Search transactions"
-                        )
-                    }
-                    IconButton(onClick = onOpenAiActivity) {
-                        Icon(
-                            imageVector = Icons.Rounded.AutoAwesome,
-                            contentDescription = "AI Activity & Simulator",
-                            tint = if (isListenerEnabled && settings.geminiApiKey.isNotBlank()) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                WarningAmber
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = { exitSelectionMode() }) {
+                            Icon(Icons.Rounded.Close, contentDescription = "Cancel selection")
+                        }
+                    },
+                    actions = {
+                        if (selectableIds.isNotEmpty()) {
+                            IconButton(onClick = {
+                                val allSelected = selectableIds.all { it in selectedIds }
+                                selectedIds = if (allSelected) emptySet() else selectableIds.toSet()
+                            }) {
+                                Icon(Icons.Rounded.SelectAll, contentDescription = "Select all")
                             }
-                        )
+                        }
+                        if (hasSelectedNeedsReview && selectedIds.isNotEmpty()) {
+                            IconButton(onClick = {
+                                viewModel.markTransactionsReviewed(selectedIds.toList())
+                                exitSelectionMode()
+                            }) {
+                                Icon(Icons.Rounded.DoneAll, contentDescription = "Mark reviewed")
+                            }
+                        }
+                        IconButton(
+                            enabled = selectedIds.isNotEmpty(),
+                            onClick = { showBulkDeleteDialog = true }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Delete,
+                                contentDescription = "Delete selected",
+                                tint = if (selectedIds.isNotEmpty()) {
+                                    MaterialTheme.colorScheme.error
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                                }
+                            )
+                        }
                     }
-                }
-            )
+                )
+            } else {
+                TopAppBar(
+                    title = {
+                        Column {
+                            Text("Money Smart", fontWeight = FontWeight.Bold)
+                            Text(
+                                text = if (isListenerEnabled && settings.geminiApiKey.isNotBlank()) {
+                                    "AI auto-capture active (${settings.allowedPackages.size} apps)"
+                                } else {
+                                    "AI capture setup needed"
+                                },
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    },
+                    actions = {
+                        if (viewMode != LedgerViewMode.MONTHLY && filteredMonthTransactions.isNotEmpty()) {
+                            IconButton(onClick = { selectionMode = true }) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Checklist,
+                                    contentDescription = "Select multiple transactions"
+                                )
+                            }
+                        }
+                        IconButton(onClick = { searchVisible = !searchVisible }) {
+                            Icon(
+                                imageVector = if (searchVisible) Icons.Rounded.Close else Icons.Rounded.Search,
+                                contentDescription = "Search transactions"
+                            )
+                        }
+                        IconButton(onClick = onOpenAiActivity) {
+                            Icon(
+                                imageVector = Icons.Rounded.AutoAwesome,
+                                contentDescription = "AI Activity & Simulator",
+                                tint = if (isListenerEnabled && settings.geminiApiKey.isNotBlank()) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    WarningAmber
+                                }
+                            )
+                        }
+                    }
+                )
+            }
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = onAddTransaction,
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
-            ) {
-                Icon(Icons.Rounded.Add, contentDescription = "Add transaction")
+            if (!selectionMode) {
+                FloatingActionButton(
+                    onClick = onAddTransaction,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                ) {
+                    Icon(Icons.Rounded.Add, contentDescription = "Add transaction")
+                }
             }
         }
     ) { innerPadding ->
@@ -303,7 +405,12 @@ fun TransactionsScreen(
                     categoryMap = categoryMap,
                     baseCurrency = settings.baseCurrency,
                     zoneId = zoneId,
-                    onEditTransaction = onEditTransaction
+                    selectionMode = selectionMode,
+                    selectedIds = selectedIds,
+                    onRowClick = { txId ->
+                        if (selectionMode) toggleSelection(txId) else onEditTransaction(txId)
+                    },
+                    onRowLongClick = { txId -> enterSelectionWith(txId) }
                 )
 
                 LedgerViewMode.MONTHLY -> MonthlyOverviewList(
@@ -326,10 +433,38 @@ fun TransactionsScreen(
                     categoryMap = categoryMap,
                     baseCurrency = settings.baseCurrency,
                     zoneId = zoneId,
-                    onEditTransaction = onEditTransaction
+                    selectionMode = selectionMode,
+                    selectedIds = selectedIds,
+                    onRowClick = { txId ->
+                        if (selectionMode) toggleSelection(txId) else onEditTransaction(txId)
+                    },
+                    onRowLongClick = { txId -> enterSelectionWith(txId) }
                 )
             }
         }
+    }
+
+    if (showBulkDeleteDialog) {
+        val idsToDelete = selectedIds.toList()
+        AlertDialog(
+            onDismissRequest = { showBulkDeleteDialog = false },
+            title = { Text("Delete ${idsToDelete.size} transactions?") },
+            text = { Text("The selected transactions will be removed from your balances and stats.") },
+            confirmButton = {
+                TextButton(
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                    onClick = {
+                        showBulkDeleteDialog = false
+                        viewModel.deleteTransactions(idsToDelete)
+                        exitSelectionMode()
+                        onBulkDeleted(idsToDelete)
+                    }
+                ) { Text("Delete") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showBulkDeleteDialog = false }) { Text("Cancel") }
+            }
+        )
     }
 }
 
@@ -428,7 +563,10 @@ private fun DailyTransactionsList(
     categoryMap: Map<Long, CategoryEntity>,
     baseCurrency: String,
     zoneId: ZoneId,
-    onEditTransaction: (Long) -> Unit
+    selectionMode: Boolean,
+    selectedIds: Set<Long>,
+    onRowClick: (Long) -> Unit,
+    onRowLongClick: (Long) -> Unit
 ) {
     if (transactions.isEmpty()) {
         EmptyStateCard(
@@ -493,7 +631,10 @@ private fun DailyTransactionsList(
                     toAccount = tx.toAccountId?.let { accountMap[it] },
                     category = tx.categoryId?.let { categoryMap[it] },
                     baseCurrency = baseCurrency,
-                    onClick = { onEditTransaction(tx.id) }
+                    onClick = { onRowClick(tx.id) },
+                    selectionMode = selectionMode,
+                    isSelected = tx.id in selectedIds,
+                    onLongClick = { onRowLongClick(tx.id) }
                 )
                 HorizontalDivider(
                     modifier = Modifier.padding(start = 70.dp),
@@ -583,7 +724,10 @@ private fun CalendarTransactionsView(
     categoryMap: Map<Long, CategoryEntity>,
     baseCurrency: String,
     zoneId: ZoneId,
-    onEditTransaction: (Long) -> Unit
+    selectionMode: Boolean,
+    selectedIds: Set<Long>,
+    onRowClick: (Long) -> Unit,
+    onRowLongClick: (Long) -> Unit
 ) {
     val byDate = remember(monthTransactions, zoneId) {
         monthTransactions.groupBy {
@@ -709,7 +853,10 @@ private fun CalendarTransactionsView(
                     toAccount = tx.toAccountId?.let { accountMap[it] },
                     category = tx.categoryId?.let { categoryMap[it] },
                     baseCurrency = baseCurrency,
-                    onClick = { onEditTransaction(tx.id) }
+                    onClick = { onRowClick(tx.id) },
+                    selectionMode = selectionMode,
+                    isSelected = tx.id in selectedIds,
+                    onLongClick = { onRowLongClick(tx.id) }
                 )
             }
         }

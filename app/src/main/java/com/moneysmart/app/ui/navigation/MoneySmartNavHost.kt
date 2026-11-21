@@ -142,6 +142,19 @@ fun MoneySmartNavHost(
                         viewModel = viewModel,
                         onAddTransaction = { navController.navigate(Routes.addEditTransaction()) },
                         onEditTransaction = { id -> navController.navigate(Routes.addEditTransaction(id)) },
+                        onBulkDeleted = { deletedIds ->
+                            scope.launch {
+                                val count = deletedIds.size
+                                val result = snackbarHostState.showSnackbar(
+                                    message = "Deleted $count transaction${if (count == 1) "" else "s"}",
+                                    actionLabel = "Undo",
+                                    duration = SnackbarDuration.Long
+                                )
+                                if (result == SnackbarResult.ActionPerformed) {
+                                    viewModel.restoreTransactions(deletedIds)
+                                }
+                            }
+                        },
                         onOpenAiActivity = { navController.navigate(Routes.AI_ACTIVITY) },
                         onOpenSettings = { navController.navigate(Routes.SETTINGS) }
                     )

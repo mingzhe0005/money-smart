@@ -1,5 +1,6 @@
 package com.moneysmart.app.data.repository
 
+import androidx.room.withTransaction
 import com.moneysmart.app.data.local.MoneySmartDatabase
 import com.moneysmart.app.data.local.SettingsDataStore
 import com.moneysmart.app.data.local.entity.AccountEntity
@@ -155,12 +156,42 @@ class MoneyRepository(
         transactionDao.softDelete(id)
     }
 
+    suspend fun softDeleteTransactions(ids: List<Long>) {
+        if (ids.isEmpty()) return
+        val now = System.currentTimeMillis()
+        db.withTransaction {
+            ids.chunked(500).forEach { chunk ->
+                transactionDao.softDeleteBatch(chunk, now)
+            }
+        }
+    }
+
     suspend fun restoreTransaction(id: Long) {
         transactionDao.restore(id)
     }
 
+    suspend fun restoreTransactions(ids: List<Long>) {
+        if (ids.isEmpty()) return
+        val now = System.currentTimeMillis()
+        db.withTransaction {
+            ids.chunked(500).forEach { chunk ->
+                transactionDao.restoreBatch(chunk, now)
+            }
+        }
+    }
+
     suspend fun markTransactionReviewed(id: Long) {
         transactionDao.markReviewed(id)
+    }
+
+    suspend fun markTransactionsReviewed(ids: List<Long>) {
+        if (ids.isEmpty()) return
+        val now = System.currentTimeMillis()
+        db.withTransaction {
+            ids.chunked(500).forEach { chunk ->
+                transactionDao.markReviewedBatch(chunk, now)
+            }
+        }
     }
 
     suspend fun findPotentialDuplicate(

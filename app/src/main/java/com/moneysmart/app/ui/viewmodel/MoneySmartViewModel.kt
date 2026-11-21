@@ -103,12 +103,24 @@ class MoneySmartViewModel(application: Application) : AndroidViewModel(applicati
         viewModelScope.launch { repository.softDeleteTransaction(id) }
     }
 
+    fun deleteTransactions(ids: List<Long>) {
+        viewModelScope.launch { repository.softDeleteTransactions(ids) }
+    }
+
     fun restoreTransaction(id: Long) {
         viewModelScope.launch { repository.restoreTransaction(id) }
     }
 
+    fun restoreTransactions(ids: List<Long>) {
+        viewModelScope.launch { repository.restoreTransactions(ids) }
+    }
+
     fun markReviewed(id: Long) {
         viewModelScope.launch { repository.markTransactionReviewed(id) }
+    }
+
+    fun markTransactionsReviewed(ids: List<Long>) {
+        viewModelScope.launch { repository.markTransactionsReviewed(ids) }
     }
 
     fun saveAccount(account: AccountEntity) {
