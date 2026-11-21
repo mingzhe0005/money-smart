@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Money Smart</string>
+    <string name="notification_listener_label">Money Smart Payment Reader</string>
+    <string name="channel_ai_recorded_name">AI Recorded Expenses</string>
+    <string name="channel_ai_recorded_desc">Alerts when Money Smart automatically records a payment notification, with quick Edit and Undo actions.</string>
+    <string name="channel_budget_alerts_name">Budget Alerts</string>
+    <string name="channel_budget_alerts_desc">Alerts when spending approaches or exceeds a monthly budget limit.</string>
+</resources>

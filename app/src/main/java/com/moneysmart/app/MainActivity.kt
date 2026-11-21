@@ -1,0 +1,104 @@
+package com.moneysmart.app
+
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import android.os.Bundle
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.moneysmart.app.notification.TransactionAlertNotifier
+import com.moneysmart.app.ui.navigation.MoneySmartNavHost
+import com.moneysmart.app.ui.screens.AppLockScreen
+import com.moneysmart.app.ui.theme.MoneySmartTheme
+import com.moneysmart.app.ui.viewmodel.MoneySmartViewModel
+
+class MainActivity : FragmentActivity() {
+
+    private var deepLinkTransactionId by mutableStateOf<Long?>(null)
+    private var isUnlockedThisSession by mutableStateOf(false)
+
+    private val notificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { _ -> }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        handleIntent(intent)
+        requestNotificationPermissionIfNeeded()
+
+        val settingsFlow = MoneySmartApp.container(this).settingsDataStore.settingsFlow
+
+        setContent {
+            val loadedSettings by settingsFlow.collectAsState(initial = null)
+            val appSettings = loadedSettings
+
+            MoneySmartTheme(themeMode = appSettings?.themeMode ?: com.moneysmart.app.data.local.ThemeMode.SYSTEM) {
+                Surface(modifier = Modifier.fillMaxSize()) {
+                    if (appSettings == null) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator()
+                        }
+                    } else if (appSettings.appLockEnabled &&
+                        appSettings.pinHash.isNotBlank() &&
+                        !isUnlockedThisSession
+                    ) {
+                        AppLockScreen(
+                            expectedHash = appSettings.pinHash,
+                            salt = appSettings.pinSalt,
+                            biometricEnabled = appSettings.biometricEnabled,
+                            onUnlocked = { isUnlockedThisSession = true }
+                        )
+                    } else {
+                        val vm: MoneySmartViewModel = viewModel()
+                        MoneySmartNavHost(
+                            viewModel = vm,
+                            deepLinkTransactionId = deepLinkTransactionId,
+                            onConsumedDeepLink = { deepLinkTransactionId = null }
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIntent(intent)
+    }
+
+    private fun handleIntent(intent: Intent?) {
+        val txId = intent?.getLongExtra(TransactionAlertNotifier.EXTRA_EDIT_TRANSACTION_ID, -1L) ?: -1L
+        if (txId > 0L) {
+            deepLinkTransactionId = txId
+        }
+    }
+
+    private fun requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val granted = ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+            if (!granted) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+    }
+}
