@@ -16,7 +16,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.w3c.dom.Element
 import java.io.ByteArrayInputStream
-import java.io.InputStream
+import java.io.File
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -24,7 +24,7 @@ import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
-import java.util.zip.ZipInputStream
+import java.util.zip.ZipFile
 import javax.xml.parsers.DocumentBuilderFactory
 import kotlin.math.abs
 
@@ -286,28 +286,35 @@ class MoneyManagerImporter(
                 bytes[0] == 0x50.toByte() &&
                 bytes[1] == 0x4B.toByte()
             return if (isZip) {
-                parseXlsxRows(ByteArrayInputStream(bytes))
+                val tmpFile = File.createTempFile("mm_import_", ".xlsx")
+                try {
+                    tmpFile.writeBytes(bytes)
+                    parseXlsxFile(tmpFile)
+                } finally {
+                    tmpFile.delete()
+                }
             } else {
                 parseDelimitedText(bytes.toString(Charsets.UTF_8))
             }
         }
 
-        fun parseXlsxRows(inputStream: InputStream): List<List<String>> {
+        fun parseXlsxFile(file: File): List<List<String>> {
             var sharedStringsBytes: ByteArray? = null
             var firstSheetBytes: ByteArray? = null
 
-            ZipInputStream(inputStream).use { zip ->
-                var entry = zip.nextEntry
-                while (entry != null) {
-                    when {
-                        entry.name == "xl/sharedStrings.xml" -> sharedStringsBytes = zip.readBytes()
-                        entry.name == "xl/worksheets/sheet1.xml" -> firstSheetBytes = zip.readBytes()
-                        firstSheetBytes == null && entry.name.startsWith("xl/worksheets/sheet") && entry.name.endsWith(".xml") -> {
-                            firstSheetBytes = zip.readBytes()
-                        }
+            // ZipFile reads from the Central Directory, safely supporting Excel ZIP64 data descriptors
+            // that cause ZipInputStream to throw "invalid entry size (expected 0...)".
+            ZipFile(file).use { zip ->
+                val ssEntry = zip.getEntry("xl/sharedStrings.xml")
+                if (ssEntry != null) {
+                    sharedStringsBytes = zip.getInputStream(ssEntry).use { it.readBytes() }
+                }
+                val sheet1Entry = zip.getEntry("xl/worksheets/sheet1.xml")
+                    ?: zip.entries().asSequence().firstOrNull { entry ->
+                        entry.name.startsWith("xl/worksheets/sheet") && entry.name.endsWith(".xml")
                     }
-                    zip.closeEntry()
-                    entry = zip.nextEntry
+                if (sheet1Entry != null) {
+                    firstSheetBytes = zip.getInputStream(sheet1Entry).use { it.readBytes() }
                 }
             }
 
