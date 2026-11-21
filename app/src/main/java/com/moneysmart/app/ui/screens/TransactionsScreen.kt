@@ -11,22 +11,26 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ViewList
-import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Checklist
+import androidx.compose.material.icons.rounded.ChevronLeft
+import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.DoneAll
@@ -36,13 +40,11 @@ import androidx.compose.material.icons.rounded.SelectAll
 import androidx.compose.material.icons.rounded.ViewAgenda
 import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -56,11 +58,13 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -78,12 +82,15 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.moneysmart.app.data.local.entity.AccountEntity
 import com.moneysmart.app.data.local.entity.CategoryEntity
 import com.moneysmart.app.data.local.entity.TransactionEntity
-import com.moneysmart.app.data.local.entity.TransactionType
 import com.moneysmart.app.data.repository.LedgerCalculations
 import com.moneysmart.app.notification.PaymentNotificationListenerService
 import com.moneysmart.app.ui.components.EmptyStateCard
+import com.moneysmart.app.ui.components.LabeledActionButton
 import com.moneysmart.app.ui.components.MonthSelectorBar
+import com.moneysmart.app.ui.components.ResponsiveContentBox
+import com.moneysmart.app.ui.components.TopBarAddButton
 import com.moneysmart.app.ui.components.TransactionRow
+import com.moneysmart.app.ui.components.rememberIsWideScreen
 import com.moneysmart.app.ui.theme.ExpenseRed
 import com.moneysmart.app.ui.theme.ExpenseRedDark
 import com.moneysmart.app.ui.theme.IncomeGreen
@@ -134,6 +141,8 @@ fun TransactionsScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    val isWide = rememberIsWideScreen()
+    var bannerDismissed by rememberSaveable { mutableStateOf(false) }
     var viewMode by remember { mutableStateOf(LedgerViewMode.DAILY) }
     var searchVisible by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
@@ -276,171 +285,181 @@ fun TransactionsScreen(
                     },
                     actions = {
                         if (viewMode != LedgerViewMode.MONTHLY && filteredMonthTransactions.isNotEmpty()) {
-                            IconButton(onClick = { selectionMode = true }) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Checklist,
-                                    contentDescription = "Select multiple transactions"
-                                )
-                            }
-                        }
-                        IconButton(onClick = { searchVisible = !searchVisible }) {
-                            Icon(
-                                imageVector = if (searchVisible) Icons.Rounded.Close else Icons.Rounded.Search,
-                                contentDescription = "Search transactions"
+                            LabeledActionButton(
+                                icon = Icons.Rounded.Checklist,
+                                label = "Select",
+                                onClick = { selectionMode = true }
                             )
                         }
-                        IconButton(onClick = onOpenAiActivity) {
-                            Icon(
-                                imageVector = Icons.Rounded.AutoAwesome,
-                                contentDescription = "AI Activity & Simulator",
-                                tint = if (isListenerEnabled && settings.geminiApiKey.isNotBlank()) {
-                                    MaterialTheme.colorScheme.primary
-                                } else {
-                                    WarningAmber
-                                }
-                            )
-                        }
+                        LabeledActionButton(
+                            icon = if (searchVisible) Icons.Rounded.Close else Icons.Rounded.Search,
+                            label = if (searchVisible) "Close" else "Search",
+                            onClick = { searchVisible = !searchVisible }
+                        )
+                        LabeledActionButton(
+                            icon = Icons.Rounded.AutoAwesome,
+                            label = "AI Setup",
+                            tint = if (isListenerEnabled && settings.geminiApiKey.isNotBlank()) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                WarningAmber
+                            },
+                            onClick = onOpenAiActivity
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        TopBarAddButton(
+                            label = "Add",
+                            onClick = onAddTransaction,
+                            modifier = Modifier.padding(end = 10.dp)
+                        )
                     }
                 )
-            }
-        },
-        floatingActionButton = {
-            if (!selectionMode) {
-                FloatingActionButton(
-                    onClick = onAddTransaction,
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
-                ) {
-                    Icon(Icons.Rounded.Add, contentDescription = "Add transaction")
-                }
             }
         }
     ) { innerPadding ->
-        Column(
+        ResponsiveContentBox(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
+                .padding(innerPadding),
+            maxWidth = if (isWide) 1040.dp else 940.dp
         ) {
-            if (searchVisible) {
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    placeholder = { Text("Search merchant, category, account, note...") },
-                    singleLine = true,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 6.dp)
-                )
-            }
-
-            if (!isListenerEnabled || settings.geminiApiKey.isBlank() || settings.allowedPackages.isEmpty()) {
-                SetupPromptBanner(
-                    hasKey = settings.geminiApiKey.isNotBlank(),
-                    hasListener = isListenerEnabled,
-                    hasApps = settings.allowedPackages.isNotEmpty(),
-                    onClick = if (settings.geminiApiKey.isBlank()) onOpenSettings else onOpenAiActivity
-                )
-            }
-
-            MonthSelectorBar(
-                yearMonth = selectedMonth,
-                onPreviousMonth = { viewModel.previousMonth() },
-                onNextMonth = { viewModel.nextMonth() }
-            )
-
-            SummaryStrip(
-                income = monthIncome,
-                expense = monthExpense,
-                baseCurrency = settings.baseCurrency
-            )
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                SingleChoiceSegmentedButtonRow(modifier = Modifier.weight(1f)) {
-                    LedgerViewMode.entries.forEachIndexed { index, mode ->
-                        SegmentedButton(
-                            selected = viewMode == mode,
-                            onClick = { viewMode = mode },
-                            shape = SegmentedButtonDefaults.itemShape(index, LedgerViewMode.entries.size),
-                            icon = {
-                                val icon = when (mode) {
-                                    LedgerViewMode.DAILY -> Icons.AutoMirrored.Rounded.ViewList
-                                    LedgerViewMode.MONTHLY -> Icons.Rounded.ViewAgenda
-                                    LedgerViewMode.CALENDAR -> Icons.Rounded.CalendarMonth
-                                }
-                                Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp))
-                            }
-                        ) {
-                            Text(mode.label, maxLines = 1, fontSize = 12.sp)
-                        }
-                    }
-                }
-
-                if (needsReviewCount > 0) {
-                    Spacer(modifier = Modifier.width(8.dp))
-                    FilterChip(
-                        selected = onlyNeedsReview,
-                        onClick = { onlyNeedsReview = !onlyNeedsReview },
-                        label = { Text("Review ($needsReviewCount)") },
-                        leadingIcon = {
-                            Icon(
-                                Icons.Rounded.WarningAmber,
-                                contentDescription = null,
-                                tint = WarningAmber,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
+            Column(modifier = Modifier.fillMaxSize()) {
+                if (searchVisible) {
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        placeholder = { Text("Search merchant, category, account, note...") },
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 6.dp)
                     )
                 }
-            }
 
-            when (viewMode) {
-                LedgerViewMode.DAILY -> DailyTransactionsList(
-                    transactions = filteredMonthTransactions,
-                    accountMap = accountMap,
-                    categoryMap = categoryMap,
-                    baseCurrency = settings.baseCurrency,
-                    zoneId = zoneId,
-                    selectionMode = selectionMode,
-                    selectedIds = selectedIds,
-                    onRowClick = { txId ->
-                        if (selectionMode) toggleSelection(txId) else onEditTransaction(txId)
-                    },
-                    onRowLongClick = { txId -> enterSelectionWith(txId) }
-                )
+                if (!bannerDismissed && (!isListenerEnabled || settings.geminiApiKey.isBlank() || settings.allowedPackages.isEmpty())) {
+                    SetupPromptBanner(
+                        hasKey = settings.geminiApiKey.isNotBlank(),
+                        hasListener = isListenerEnabled,
+                        hasApps = settings.allowedPackages.isNotEmpty(),
+                        onClick = if (settings.geminiApiKey.isBlank()) onOpenSettings else onOpenAiActivity,
+                        onDismiss = { bannerDismissed = true }
+                    )
+                }
 
-                LedgerViewMode.MONTHLY -> MonthlyOverviewList(
-                    year = selectedMonth.year,
-                    allTransactions = allTransactions,
-                    baseCurrency = settings.baseCurrency,
-                    zoneId = zoneId,
-                    onSelectMonth = { ym ->
-                        viewModel.setMonth(ym)
-                        viewMode = LedgerViewMode.DAILY
+                if (isWide) {
+                    WideMonthAndSummaryBar(
+                        yearMonth = selectedMonth,
+                        income = monthIncome,
+                        expense = monthExpense,
+                        baseCurrency = settings.baseCurrency,
+                        onPreviousMonth = { viewModel.previousMonth() },
+                        onNextMonth = { viewModel.nextMonth() }
+                    )
+                } else {
+                    MonthSelectorBar(
+                        yearMonth = selectedMonth,
+                        onPreviousMonth = { viewModel.previousMonth() },
+                        onNextMonth = { viewModel.nextMonth() }
+                    )
+                    SummaryStrip(
+                        income = monthIncome,
+                        expense = monthExpense,
+                        baseCurrency = settings.baseCurrency
+                    )
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = if (isWide) 4.dp else 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    SingleChoiceSegmentedButtonRow(modifier = Modifier.weight(1f)) {
+                        LedgerViewMode.entries.forEachIndexed { index, mode ->
+                            SegmentedButton(
+                                selected = viewMode == mode,
+                                onClick = { viewMode = mode },
+                                shape = SegmentedButtonDefaults.itemShape(index, LedgerViewMode.entries.size),
+                                icon = {
+                                    val icon = when (mode) {
+                                        LedgerViewMode.DAILY -> Icons.AutoMirrored.Rounded.ViewList
+                                        LedgerViewMode.MONTHLY -> Icons.Rounded.ViewAgenda
+                                        LedgerViewMode.CALENDAR -> Icons.Rounded.CalendarMonth
+                                    }
+                                    Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp))
+                                }
+                            ) {
+                                Text(mode.label, maxLines = 1, fontSize = 13.sp)
+                            }
+                        }
                     }
-                )
 
-                LedgerViewMode.CALENDAR -> CalendarTransactionsView(
-                    yearMonth = selectedMonth,
-                    selectedDate = selectedCalendarDate,
-                    onSelectDate = { selectedCalendarDate = it },
-                    monthTransactions = filteredMonthTransactions,
-                    accountMap = accountMap,
-                    categoryMap = categoryMap,
-                    baseCurrency = settings.baseCurrency,
-                    zoneId = zoneId,
-                    selectionMode = selectionMode,
-                    selectedIds = selectedIds,
-                    onRowClick = { txId ->
-                        if (selectionMode) toggleSelection(txId) else onEditTransaction(txId)
-                    },
-                    onRowLongClick = { txId -> enterSelectionWith(txId) }
-                )
+                    if (needsReviewCount > 0) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        FilterChip(
+                            selected = onlyNeedsReview,
+                            onClick = { onlyNeedsReview = !onlyNeedsReview },
+                            label = { Text("Review ($needsReviewCount)") },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Rounded.WarningAmber,
+                                    contentDescription = null,
+                                    tint = WarningAmber,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        )
+                    }
+                }
+
+                when (viewMode) {
+                    LedgerViewMode.DAILY -> DailyTransactionsList(
+                        transactions = filteredMonthTransactions,
+                        accountMap = accountMap,
+                        categoryMap = categoryMap,
+                        baseCurrency = settings.baseCurrency,
+                        zoneId = zoneId,
+                        selectionMode = selectionMode,
+                        selectedIds = selectedIds,
+                        onAddTransaction = onAddTransaction,
+                        onRowClick = { txId ->
+                            if (selectionMode) toggleSelection(txId) else onEditTransaction(txId)
+                        },
+                        onRowLongClick = { txId -> enterSelectionWith(txId) }
+                    )
+
+                    LedgerViewMode.MONTHLY -> MonthlyOverviewList(
+                        year = selectedMonth.year,
+                        allTransactions = allTransactions,
+                        baseCurrency = settings.baseCurrency,
+                        zoneId = zoneId,
+                        isWide = isWide,
+                        onSelectMonth = { ym ->
+                            viewModel.setMonth(ym)
+                            viewMode = LedgerViewMode.DAILY
+                        }
+                    )
+
+                    LedgerViewMode.CALENDAR -> CalendarTransactionsView(
+                        yearMonth = selectedMonth,
+                        selectedDate = selectedCalendarDate,
+                        onSelectDate = { selectedCalendarDate = it },
+                        monthTransactions = filteredMonthTransactions,
+                        accountMap = accountMap,
+                        categoryMap = categoryMap,
+                        baseCurrency = settings.baseCurrency,
+                        zoneId = zoneId,
+                        isWide = isWide,
+                        selectionMode = selectionMode,
+                        selectedIds = selectedIds,
+                        onAddTransaction = onAddTransaction,
+                        onRowClick = { txId ->
+                            if (selectionMode) toggleSelection(txId) else onEditTransaction(txId)
+                        },
+                        onRowLongClick = { txId -> enterSelectionWith(txId) }
+                    )
+                }
             }
         }
     }
@@ -474,7 +493,8 @@ private fun SetupPromptBanner(
     hasKey: Boolean,
     hasListener: Boolean,
     hasApps: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onDismiss: () -> Unit
 ) {
     val message = when {
         !hasKey -> "Add your free Gemini API key in Settings to activate AI payment reading."
@@ -487,27 +507,107 @@ private fun SetupPromptBanner(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .padding(horizontal = 16.dp, vertical = 4.dp)
             .clickable(onClick = onClick),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
         )
     ) {
         Row(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
                 imageVector = Icons.Rounded.NotificationsActive,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(18.dp)
             )
             Spacer(modifier = Modifier.width(10.dp))
             Text(
                 text = message,
                 style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
+            TextButton(
+                onClick = onClick,
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+            ) {
+                Text(if (!hasKey) "Open Settings" else "Setup Now")
+            }
+            IconButton(
+                onClick = onDismiss,
+                modifier = Modifier.size(30.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Close,
+                    contentDescription = "Dismiss setup banner",
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun WideMonthAndSummaryBar(
+    yearMonth: YearMonth,
+    income: Double,
+    expense: Double,
+    baseCurrency: String,
+    onPreviousMonth: () -> Unit,
+    onNextMonth: () -> Unit
+) {
+    val isDark = isSystemInDarkTheme()
+    val incomeColor = if (isDark) IncomeGreenDark else IncomeGreen
+    val expenseColor = if (isDark) ExpenseRedDark else ExpenseRed
+    val net = income - expense
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant,
+                shape = RoundedCornerShape(14.dp)
+            ),
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surface
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onPreviousMonth, modifier = Modifier.size(36.dp)) {
+                    Icon(Icons.Rounded.ChevronLeft, contentDescription = "Previous month")
+                }
+                Text(
+                    text = FormatUtils.formatYearMonth(yearMonth),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(horizontal = 6.dp)
+                )
+                IconButton(onClick = onNextMonth, modifier = Modifier.size(36.dp)) {
+                    Icon(Icons.Rounded.ChevronRight, contentDescription = "Next month")
+                }
+            }
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(28.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                SummaryMetric("Income", FormatUtils.formatMoney(income, baseCurrency), incomeColor)
+                SummaryMetric("Expenses", FormatUtils.formatMoney(expense, baseCurrency), expenseColor)
+                SummaryMetric("Net", FormatUtils.formatMoney(net, baseCurrency), MaterialTheme.colorScheme.onSurface)
+            }
         }
     }
 }
@@ -566,13 +666,16 @@ private fun DailyTransactionsList(
     zoneId: ZoneId,
     selectionMode: Boolean,
     selectedIds: Set<Long>,
+    onAddTransaction: () -> Unit,
     onRowClick: (Long) -> Unit,
     onRowLongClick: (Long) -> Unit
 ) {
     if (transactions.isEmpty()) {
         EmptyStateCard(
             title = "No transactions yet",
-            subtitle = "Tap + to add an expense, or enable AI notification capture for your banking & e-wallet apps."
+            subtitle = "Add an expense or income manually, or enable AI notification capture for your banking & e-wallet apps.",
+            actionLabel = "Add Transaction",
+            onAction = onAddTransaction
         )
         return
     }
@@ -584,20 +687,20 @@ private fun DailyTransactionsList(
     }
 
     LazyColumn(
-        contentPadding = PaddingValues(bottom = 88.dp)
+        contentPadding = PaddingValues(bottom = 24.dp)
     ) {
         grouped.forEach { (date, dayTxs) ->
             val dayIncome = dayTxs.sumOf { LedgerCalculations.effectiveIncomeBaseAmount(it) }
             val dayExpense = dayTxs.sumOf { LedgerCalculations.effectiveExpenseBaseAmount(it) }
             item(key = "header_$date") {
                 Surface(
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                    color = MaterialTheme.colorScheme.surfaceContainer,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 6.dp),
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -606,18 +709,18 @@ private fun DailyTransactionsList(
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.SemiBold
                         )
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             if (dayIncome > 0) {
                                 Text(
                                     text = "+${FormatUtils.formatMoney(dayIncome, baseCurrency)}",
-                                    style = MaterialTheme.typography.labelMedium,
+                                    style = MaterialTheme.typography.labelLarge,
                                     color = IncomeGreen
                                 )
                             }
                             if (dayExpense > 0) {
                                 Text(
                                     text = "-${FormatUtils.formatMoney(dayExpense, baseCurrency)}",
-                                    style = MaterialTheme.typography.labelMedium,
+                                    style = MaterialTheme.typography.labelLarge,
                                     color = ExpenseRed
                                 )
                             }
@@ -639,7 +742,7 @@ private fun DailyTransactionsList(
                 )
                 HorizontalDivider(
                     modifier = Modifier.padding(start = 70.dp),
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
                 )
             }
         }
@@ -652,66 +755,84 @@ private fun MonthlyOverviewList(
     allTransactions: List<TransactionEntity>,
     baseCurrency: String,
     zoneId: ZoneId,
+    isWide: Boolean,
     onSelectMonth: (YearMonth) -> Unit
 ) {
     val months = remember(year) { (12 downTo 1).map { YearMonth.of(year, it) } }
+    val monthRows = remember(months, isWide) {
+        if (isWide) months.chunked(2) else months.chunked(1)
+    }
 
     LazyColumn(
         contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        items(months, key = { it.toString() }) { ym ->
-            val (start, end) = FormatUtils.monthRangeMillis(ym, zoneId)
-            val monthTxs = allTransactions.filter { it.timestamp in start until end }
-            val inc = monthTxs.sumOf { LedgerCalculations.effectiveIncomeBaseAmount(it) }
-            val exp = monthTxs.sumOf { LedgerCalculations.effectiveExpenseBaseAmount(it) }
-            val net = inc - exp
-
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onSelectMonth(ym) }
+        items(monthRows) { rowMonths ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column {
-                        Text(
-                            text = FormatUtils.formatYearMonth(ym),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
+                rowMonths.forEach { ym ->
+                    val (start, end) = FormatUtils.monthRangeMillis(ym, zoneId)
+                    val monthTxs = allTransactions.filter { it.timestamp in start until end }
+                    val inc = monthTxs.sumOf { LedgerCalculations.effectiveIncomeBaseAmount(it) }
+                    val exp = monthTxs.sumOf { LedgerCalculations.effectiveExpenseBaseAmount(it) }
+                    val net = inc - exp
+
+                    Card(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { onSelectMonth(ym) },
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            MaterialTheme.colorScheme.outlineVariant
                         )
-                        Text(
-                            text = "${monthTxs.size} transactions",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column {
+                                Text(
+                                    text = FormatUtils.formatYearMonth(ym),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = "${monthTxs.size} transactions",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text(
+                                    text = "+${FormatUtils.formatMoney(inc, baseCurrency)}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = IncomeGreen
+                                )
+                                Text(
+                                    text = "-${FormatUtils.formatMoney(exp, baseCurrency)}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = ExpenseRed
+                                )
+                                Text(
+                                    text = "Net ${FormatUtils.formatMoney(net, baseCurrency)}",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
                     }
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text(
-                            text = "+${FormatUtils.formatMoney(inc, baseCurrency)}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = IncomeGreen
-                        )
-                        Text(
-                            text = "-${FormatUtils.formatMoney(exp, baseCurrency)}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = ExpenseRed
-                        )
-                        Text(
-                            text = "Net ${FormatUtils.formatMoney(net, baseCurrency)}",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+                }
+                if (isWide && rowMonths.size == 1) {
+                    Spacer(modifier = Modifier.weight(1f))
                 }
             }
         }
-        item { Spacer(modifier = Modifier.height(72.dp)) }
     }
 }
 
@@ -725,8 +846,10 @@ private fun CalendarTransactionsView(
     categoryMap: Map<Long, CategoryEntity>,
     baseCurrency: String,
     zoneId: ZoneId,
+    isWide: Boolean,
     selectionMode: Boolean,
     selectedIds: Set<Long>,
+    onAddTransaction: () -> Unit,
     onRowClick: (Long) -> Unit,
     onRowLongClick: (Long) -> Unit
 ) {
@@ -740,13 +863,21 @@ private fun CalendarTransactionsView(
     val daysInMonth = yearMonth.lengthOfMonth()
     val totalCells = ((firstDayOffset + daysInMonth + 6) / 7) * 7
     val selectedDayTransactions = byDate[selectedDate].orEmpty()
+    val selectedDayLabel = remember(selectedDate, zoneId) {
+        FormatUtils.formatDayHeader(selectedDate.atStartOfDay(zoneId).toInstant().toEpochMilli(), zoneId)
+    }
 
-    LazyColumn(contentPadding = PaddingValues(bottom = 88.dp)) {
-        item {
+    @Composable
+    fun CalendarGridBlock(modifier: Modifier = Modifier) {
+        Column(
+            modifier = modifier
+                .then(if (isWide) Modifier.verticalScroll(rememberScrollState()) else Modifier)
+                .padding(horizontal = 12.dp, vertical = 2.dp)
+        ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                    .padding(bottom = 2.dp)
             ) {
                 listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat").forEach { dayName ->
                     Text(
@@ -760,53 +891,60 @@ private fun CalendarTransactionsView(
             }
 
             val rows = totalCells / 7
-            Column(modifier = Modifier.padding(horizontal = 8.dp)) {
-                for (r in 0 until rows) {
-                    Row(modifier = Modifier.fillMaxWidth()) {
-                        for (c in 0 until 7) {
-                            val cellIndex = r * 7 + c
-                            val dayNum = cellIndex - firstDayOffset + 1
-                            if (dayNum in 1..daysInMonth) {
-                                val date = yearMonth.atDay(dayNum)
-                                val dayTxs = byDate[date].orEmpty()
-                                val dayExp = dayTxs.sumOf { LedgerCalculations.effectiveExpenseBaseAmount(it) }
-                                val dayInc = dayTxs.sumOf { LedgerCalculations.effectiveIncomeBaseAmount(it) }
-                                val isSelected = date == selectedDate
+            val cellHeight = if (isWide) 46.dp else 58.dp
+            for (r in 0 until rows) {
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    for (c in 0 until 7) {
+                        val cellIndex = r * 7 + c
+                        val dayNum = cellIndex - firstDayOffset + 1
+                        if (dayNum in 1..daysInMonth) {
+                            val date = yearMonth.atDay(dayNum)
+                            val dayTxs = byDate[date].orEmpty()
+                            val dayExp = dayTxs.sumOf { LedgerCalculations.effectiveExpenseBaseAmount(it) }
+                            val dayInc = dayTxs.sumOf { LedgerCalculations.effectiveIncomeBaseAmount(it) }
+                            val isSelected = date == selectedDate
 
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .aspectRatio(1f)
-                                        .padding(2.dp)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(
-                                            if (isSelected) MaterialTheme.colorScheme.primaryContainer
-                                            else MaterialTheme.colorScheme.surface
-                                        )
-                                        .border(
-                                            width = if (isSelected) 1.5.dp else 0.5.dp,
-                                            color = if (isSelected) MaterialTheme.colorScheme.primary
-                                            else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
-                                            shape = RoundedCornerShape(8.dp)
-                                        )
-                                        .clickable { onSelectDate(date) }
-                                        .padding(3.dp)
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(cellHeight)
+                                    .padding(1.5.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(
+                                        if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.75f)
+                                        else MaterialTheme.colorScheme.surface
+                                    )
+                                    .border(
+                                        width = if (isSelected) 1.5.dp else 0.75.dp,
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.outlineVariant,
+                                        shape = RoundedCornerShape(8.dp)
+                                    )
+                                    .clickable { onSelectDate(date) }
+                                    .padding(horizontal = 3.dp, vertical = 2.dp)
+                            ) {
+                                Column(
+                                    modifier = Modifier.fillMaxSize(),
+                                    verticalArrangement = Arrangement.SpaceBetween,
+                                    horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
-                                    Column(
-                                        modifier = Modifier.fillMaxSize(),
-                                        verticalArrangement = Arrangement.SpaceBetween,
-                                        horizontalAlignment = Alignment.CenterHorizontally
-                                    ) {
-                                        Text(
-                                            text = dayNum.toString(),
-                                            style = MaterialTheme.typography.labelMedium,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                        )
-                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(
+                                        text = dayNum.toString(),
+                                        fontSize = 12.5.sp,
+                                        lineHeight = 14.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                    )
+                                    if (isWide) {
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(3.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
                                             if (dayInc > 0) {
                                                 Text(
                                                     text = "+${dayInc.toInt()}",
-                                                    fontSize = 9.sp,
+                                                    fontSize = 10.sp,
+                                                    lineHeight = 12.sp,
+                                                    fontWeight = FontWeight.SemiBold,
                                                     color = IncomeGreen,
                                                     maxLines = 1,
                                                     overflow = TextOverflow.Clip
@@ -815,7 +953,34 @@ private fun CalendarTransactionsView(
                                             if (dayExp > 0) {
                                                 Text(
                                                     text = "-${dayExp.toInt()}",
-                                                    fontSize = 9.sp,
+                                                    fontSize = 10.sp,
+                                                    lineHeight = 12.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = ExpenseRed,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Clip
+                                                )
+                                            }
+                                        }
+                                    } else {
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                            if (dayInc > 0) {
+                                                Text(
+                                                    text = "+${dayInc.toInt()}",
+                                                    fontSize = 10.sp,
+                                                    lineHeight = 11.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = IncomeGreen,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Clip
+                                                )
+                                            }
+                                            if (dayExp > 0) {
+                                                Text(
+                                                    text = "-${dayExp.toInt()}",
+                                                    fontSize = 10.sp,
+                                                    lineHeight = 11.sp,
+                                                    fontWeight = FontWeight.SemiBold,
                                                     color = ExpenseRed,
                                                     maxLines = 1,
                                                     overflow = TextOverflow.Clip
@@ -824,41 +989,124 @@ private fun CalendarTransactionsView(
                                         }
                                     }
                                 }
-                            } else {
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .aspectRatio(1f)
-                                        .padding(2.dp)
-                                )
                             }
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(cellHeight)
+                                    .padding(1.5.dp)
+                            )
                         }
                     }
                 }
             }
-            HorizontalDivider(modifier = Modifier.padding(top = 8.dp))
         }
+    }
 
-        if (selectedDayTransactions.isEmpty()) {
-            item {
-                EmptyStateCard(
-                    title = "No transactions on ${selectedDate}",
-                    subtitle = "Tap another highlighted day or tap + to add one."
-                )
+    if (isWide) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = 4.dp)
+        ) {
+            CalendarGridBlock(
+                modifier = Modifier
+                    .weight(1.05f)
+                    .fillMaxHeight()
+            )
+            VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            LazyColumn(
+                modifier = Modifier
+                    .weight(0.95f)
+                    .fillMaxHeight(),
+                contentPadding = PaddingValues(bottom = 24.dp)
+            ) {
+                item {
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceContainer,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = selectedDayLabel,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = "${selectedDayTransactions.size} item(s)",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+                if (selectedDayTransactions.isEmpty()) {
+                    item {
+                        EmptyStateCard(
+                            title = "No transactions on $selectedDayLabel",
+                            subtitle = "Pick another day on the calendar or add a new entry.",
+                            actionLabel = "Add Transaction",
+                            onAction = onAddTransaction
+                        )
+                    }
+                } else {
+                    items(selectedDayTransactions, key = { it.id }) { tx ->
+                        TransactionRow(
+                            transaction = tx,
+                            account = accountMap[tx.accountId],
+                            toAccount = tx.toAccountId?.let { accountMap[it] },
+                            category = tx.categoryId?.let { categoryMap[it] },
+                            baseCurrency = baseCurrency,
+                            onClick = { onRowClick(tx.id) },
+                            selectionMode = selectionMode,
+                            isSelected = tx.id in selectedIds,
+                            onLongClick = { onRowLongClick(tx.id) }
+                        )
+                        HorizontalDivider(
+                            modifier = Modifier.padding(start = 70.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+                        )
+                    }
+                }
             }
-        } else {
-            items(selectedDayTransactions, key = { it.id }) { tx ->
-                TransactionRow(
-                    transaction = tx,
-                    account = accountMap[tx.accountId],
-                    toAccount = tx.toAccountId?.let { accountMap[it] },
-                    category = tx.categoryId?.let { categoryMap[it] },
-                    baseCurrency = baseCurrency,
-                    onClick = { onRowClick(tx.id) },
-                    selectionMode = selectionMode,
-                    isSelected = tx.id in selectedIds,
-                    onLongClick = { onRowLongClick(tx.id) }
-                )
+        }
+    } else {
+        LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
+            item {
+                CalendarGridBlock()
+                HorizontalDivider(modifier = Modifier.padding(top = 8.dp))
+            }
+
+            if (selectedDayTransactions.isEmpty()) {
+                item {
+                    EmptyStateCard(
+                        title = "No transactions on $selectedDayLabel",
+                        subtitle = "Tap another day above or add a transaction.",
+                        actionLabel = "Add Transaction",
+                        onAction = onAddTransaction
+                    )
+                }
+            } else {
+                items(selectedDayTransactions, key = { it.id }) { tx ->
+                    TransactionRow(
+                        transaction = tx,
+                        account = accountMap[tx.accountId],
+                        toAccount = tx.toAccountId?.let { accountMap[it] },
+                        category = tx.categoryId?.let { categoryMap[it] },
+                        baseCurrency = baseCurrency,
+                        onClick = { onRowClick(tx.id) },
+                        selectionMode = selectionMode,
+                        isSelected = tx.id in selectedIds,
+                        onLongClick = { onRowLongClick(tx.id) }
+                    )
+                }
             }
         }
     }

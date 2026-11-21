@@ -57,6 +57,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.moneysmart.app.data.local.ThemeMode
 import com.moneysmart.app.data.remote.ProbedGeminiModel
 import com.moneysmart.app.security.AppLockManager
+import com.moneysmart.app.ui.components.ResponsiveContentBox
 import com.moneysmart.app.ui.viewmodel.MoneySmartViewModel
 import com.moneysmart.app.util.FormatUtils
 import kotlinx.coroutines.launch
@@ -107,18 +108,28 @@ fun SettingsScreen(
             )
         }
     ) { innerPadding ->
-        Column(
+        ResponsiveContentBox(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+                .verticalScroll(rememberScrollState()),
+            maxWidth = 860.dp
         ) {
-            // Gemini AI Section
-            Card {
-                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Gemini AI (Free BYOK)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                // Gemini AI Section
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                    Text("Gemini AI (Free Personal API Key)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                     Text(
                         text = "Get a free API key from Google AI Studio (aistudio.google.com). Free tier requires no credit card and handles daily payment alerts easily.",
                         style = MaterialTheme.typography.bodyMedium,
@@ -245,8 +256,13 @@ fun SettingsScreen(
             }
 
             // AI Auto-Record Behavior
-            Card {
-                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     Text("AI Recording Behavior", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -282,8 +298,13 @@ fun SettingsScreen(
             }
 
             // Currency & Free Exchange Rates
-            Card {
-                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     Text("Currency & Free Daily Rates", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                     CurrencyDropdown(
                         selectedCurrency = settings.baseCurrency,
@@ -322,8 +343,13 @@ fun SettingsScreen(
             }
 
             // Appearance
-            Card {
-                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     Text("Appearance", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                     SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                         ThemeMode.entries.forEachIndexed { idx, mode ->
@@ -340,8 +366,13 @@ fun SettingsScreen(
             }
 
             // App Lock
-            Card {
-                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     Text("Security", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -381,6 +412,7 @@ fun SettingsScreen(
                         }
                     }
                 }
+            }
             }
         }
     }

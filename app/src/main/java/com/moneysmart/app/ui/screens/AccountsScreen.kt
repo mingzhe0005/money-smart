@@ -5,27 +5,31 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.SwapHoriz
-import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -33,9 +37,8 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
@@ -59,11 +62,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.moneysmart.app.data.local.entity.AccountEntity
 import com.moneysmart.app.data.local.entity.AccountType
 import com.moneysmart.app.data.repository.AccountWithBalance
 import com.moneysmart.app.ui.components.IconCatalog
+import com.moneysmart.app.ui.components.LabeledActionButton
+import com.moneysmart.app.ui.components.ResponsiveContentBox
+import com.moneysmart.app.ui.components.TopBarAddButton
+import com.moneysmart.app.ui.components.rememberIsWideScreen
 import com.moneysmart.app.ui.theme.ExpenseRed
 import com.moneysmart.app.ui.theme.IncomeGreen
 import com.moneysmart.app.ui.viewmodel.MoneySmartViewModel
@@ -80,9 +89,9 @@ fun AccountsScreen(
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val accountsWithBalances by viewModel.accountsWithBalances.collectAsStateWithLifecycle()
 
+    val isWide = rememberIsWideScreen()
     var editingItem by remember { mutableStateOf<AccountWithBalance?>(null) }
     var showAccountDialog by remember { mutableStateOf(false) }
-    var showCalibrateConfirm by remember { mutableStateOf(false) }
     var statusBanner by remember { mutableStateOf<String?>(null) }
     var isSyncing by remember { mutableStateOf(false) }
 
@@ -103,11 +112,13 @@ fun AccountsScreen(
             TopAppBar(
                 title = { Text("Accounts & Wallets", fontWeight = FontWeight.Bold) },
                 actions = {
-                    IconButton(
+                    LabeledActionButton(
+                        icon = Icons.Rounded.Refresh,
+                        label = if (isSyncing) "Syncing..." else "Sync Prices",
                         enabled = !isSyncing,
                         onClick = {
                             isSyncing = true
-                            statusBanner = "Syncing live investments & rates..."
+                            statusBanner = "Syncing live investments & exchange rates..."
                             scope.launch {
                                 val res = viewModel.syncLiveInvestmentsNow()
                                 statusBanner = res.fold(
@@ -115,7 +126,7 @@ fun AccountsScreen(
                                         if (count > 0) {
                                             "Synced $count live investment account(s)."
                                         } else {
-                                            "To auto-sync an investment (like Mari Gold), tap it and enter its ticker (e.g. XAU_GRAM) and units/grams."
+                                            "All accounts up to date. Tap an investment account to set a live price ticker and units."
                                         }
                                     },
                                     onFailure = { err -> "Live sync failed: ${err.message}" }
@@ -123,210 +134,149 @@ fun AccountsScreen(
                                 isSyncing = false
                             }
                         }
-                    ) {
-                        Icon(Icons.Rounded.Refresh, contentDescription = "Sync live investment prices")
-                    }
-                    IconButton(onClick = { showCalibrateConfirm = true }) {
-                        Icon(Icons.Rounded.Tune, contentDescription = "Apply screenshot balances")
-                    }
-                    IconButton(onClick = onQuickTransfer) {
-                        Icon(Icons.Rounded.SwapHoriz, contentDescription = "Transfer between accounts")
-                    }
+                    )
+                    LabeledActionButton(
+                        icon = Icons.Rounded.SwapHoriz,
+                        label = "Transfer",
+                        onClick = onQuickTransfer
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    TopBarAddButton(
+                        label = "Add",
+                        onClick = {
+                            editingItem = null
+                            showAccountDialog = true
+                        },
+                        modifier = Modifier.padding(end = 10.dp)
+                    )
                 }
             )
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = {
-                    editingItem = null
-                    showAccountDialog = true
-                },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
-            ) {
-                Icon(Icons.Rounded.Add, contentDescription = "Add account")
-            }
         }
     ) { innerPadding ->
-        LazyColumn(
+        ResponsiveContentBox(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 88.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            maxWidth = if (isWide) 1040.dp else 920.dp
         ) {
-            if (statusBanner != null) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 28.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                if (statusBanner != null) {
+                    item {
+                        Surface(
+                            color = MaterialTheme.colorScheme.secondaryContainer,
+                            shape = MaterialTheme.shapes.medium,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = statusBanner!!,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                TextButton(onClick = { statusBanner = null }) { Text("OK") }
+                            }
+                        }
+                    }
+                }
+
                 item {
-                    Surface(
-                        color = MaterialTheme.colorScheme.secondaryContainer,
-                        shape = MaterialTheme.shapes.medium,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = statusBanner!!,
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.weight(1f)
-                            )
-                            TextButton(onClick = { statusBanner = null }) { Text("OK") }
-                        }
-                    }
-                }
-            }
-
-            item {
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
-                    )
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp)
-                    ) {
-                        Text(
-                            text = "Net Worth (${settings.baseCurrency})",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = FormatUtils.formatMoney(netWorth, settings.baseCurrency),
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column {
-                                Text("Assets", style = MaterialTheme.typography.labelMedium)
-                                Text(
-                                    text = FormatUtils.formatMoney(assets, settings.baseCurrency),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = IncomeGreen,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
-                            Column(horizontalAlignment = Alignment.End) {
-                                Text("Liabilities", style = MaterialTheme.typography.labelMedium)
-                                Text(
-                                    text = FormatUtils.formatMoney(liabilities, settings.baseCurrency),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = ExpenseRed,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            grouped.forEach { (type, list) ->
-                item(key = "group_${type.name}") {
-                    Text(
-                        text = type.displayName,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(top = 8.dp, bottom = 2.dp)
-                    )
-                }
-                items(list, key = { it.account.id }) { item ->
-                    val acc = item.account
-                    val accent = Color(acc.colorHex)
-                    val subtitle = buildString {
-                        append(acc.currency)
-                        if (acc.autoRechargeSourceAccountId != null) {
-                            val srcName = accountNameMap[acc.autoRechargeSourceAccountId] ?: "Linked Bank"
-                            append(" · Auto-recharge from $srcName")
-                        }
-                        if (item.isLiveMarketValue && !acc.marketSymbol.isNullOrBlank()) {
-                            append(" · Live (${acc.marketSymbol} × ${acc.holdingUnits})")
-                        } else if (acc.type == AccountType.INVESTMENT && !acc.marketSymbol.isNullOrBlank()) {
-                            append(" · Set units to auto-sync (${acc.marketSymbol})")
-                        }
-                        if (!acc.includeInTotal) append(" · Excluded from Net Worth")
-                    }
-
                     Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                editingItem = item
-                                showAccountDialog = true
-                            }
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+                        )
                     ) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(14.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                                .padding(16.dp)
                         ) {
+                            Text(
+                                text = "Net Worth (${settings.baseCurrency})",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = FormatUtils.formatMoney(netWorth, settings.baseCurrency),
+                                style = MaterialTheme.typography.headlineMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
+                                horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .clip(CircleShape)
-                                        .background(accent.copy(alpha = 0.14f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = IconCatalog.resolve(acc.iconName),
-                                        contentDescription = null,
-                                        tint = accent
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column(modifier = Modifier.weight(1f)) {
+                                Column {
+                                    Text("Assets", style = MaterialTheme.typography.labelMedium)
                                     Text(
-                                        text = acc.name,
+                                        text = FormatUtils.formatMoney(assets, settings.baseCurrency),
                                         style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                    Text(
-                                        text = subtitle,
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = IncomeGreen,
+                                        fontWeight = FontWeight.SemiBold
                                     )
                                 }
                                 Column(horizontalAlignment = Alignment.End) {
+                                    Text("Liabilities", style = MaterialTheme.typography.labelMedium)
                                     Text(
-                                        text = FormatUtils.formatMoney(item.currentBalance, acc.currency),
+                                        text = FormatUtils.formatMoney(liabilities, settings.baseCurrency),
                                         style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (item.currentBalance < 0) ExpenseRed else MaterialTheme.colorScheme.onSurface
+                                        color = ExpenseRed,
+                                        fontWeight = FontWeight.SemiBold
                                     )
-                                    if (!acc.currency.equals(settings.baseCurrency, ignoreCase = true)) {
-                                        Text(
-                                            text = "≈ ${FormatUtils.formatMoney(item.balanceInBaseCurrency, settings.baseCurrency)}",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
                                 }
                             }
-                            if (acc.autoRechargeSourceAccountId != null && item.currentBalance < acc.autoRechargeMinBalance - 0.005) {
-                                val srcName = accountNameMap[acc.autoRechargeSourceAccountId] ?: "Linked Bank"
-                                OutlinedButton(
+                        }
+                    }
+                }
+
+                grouped.forEach { (type, list) ->
+                    item(key = "group_${type.name}") {
+                        Text(
+                            text = type.displayName,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(top = 8.dp, bottom = 2.dp)
+                        )
+                    }
+                    val chunkedRows = if (isWide) list.chunked(2) else list.chunked(1)
+                    items(chunkedRows, key = { row -> "${type.name}_${row.first().account.id}" }) { rowItems ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(IntrinsicSize.Max),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            rowItems.forEach { item ->
+                                AccountSummaryCard(
+                                    item = item,
+                                    baseCurrency = settings.baseCurrency,
+                                    accountNameMap = accountNameMap,
                                     onClick = {
+                                        editingItem = item
+                                        showAccountDialog = true
+                                    },
+                                    onTopUpNow = { acc, srcName ->
                                         viewModel.rechargeAccountNow(acc.id) { amount ->
                                             if (amount > 0.0) {
                                                 statusBanner = "Auto-recharged ${FormatUtils.formatMoney(amount, acc.currency)} from $srcName → ${acc.name}."
                                             }
                                         }
                                     },
-                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
-                                ) {
-                                    Text("Top Up Now from $srcName")
-                                }
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight()
+                                )
+                            }
+                            if (isWide && rowItems.size == 1) {
+                                Spacer(modifier = Modifier.weight(1f))
                             }
                         }
                     }
@@ -356,29 +306,106 @@ fun AccountsScreen(
             }
         )
     }
+}
 
-    if (showCalibrateConfirm) {
-        AlertDialog(
-            onDismissRequest = { showCalibrateConfirm = false },
-            title = { Text("Calibrate to Money Manager Balances?") },
-            text = {
-                Text(
-                    "Sets all 18 accounts (Cash, OCBC, POSB, PayLah -10.90, Investments, EUR wallets) to match your Money Manager screenshot balances and links PayLah auto-recharge to POSB, without deleting any imported transactions."
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    showCalibrateConfirm = false
-                    scope.launch {
-                        val count = viewModel.applyScreenshotBalancesNow()
-                        statusBanner = "Calibrated $count accounts to your Money Manager balances and linked PayLah → POSB auto-recharge."
-                    }
-                }) { Text("Apply Balances") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showCalibrateConfirm = false }) { Text("Cancel") }
+@Composable
+private fun AccountSummaryCard(
+    item: AccountWithBalance,
+    baseCurrency: String,
+    accountNameMap: Map<Long, String>,
+    onClick: () -> Unit,
+    onTopUpNow: (AccountEntity, String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val acc = item.account
+    val accent = Color(acc.colorHex)
+    val subtitle = buildString {
+        append(acc.currency)
+        if (acc.autoRechargeSourceAccountId != null) {
+            val srcName = accountNameMap[acc.autoRechargeSourceAccountId] ?: "Linked Bank"
+            append(" · Auto-recharge from $srcName")
+        }
+        if (item.isLiveMarketValue && !acc.marketSymbol.isNullOrBlank()) {
+            val friendlyLive = if (acc.marketSymbol.equals("XAU_GRAM", ignoreCase = true)) {
+                "Live Gold (${acc.holdingUnits} g)"
+            } else {
+                "Live (${acc.marketSymbol} × ${acc.holdingUnits})"
             }
-        )
+            append(" · $friendlyLive")
+        } else if (acc.type == AccountType.INVESTMENT && !acc.marketSymbol.isNullOrBlank()) {
+            val friendlyTicker = if (acc.marketSymbol.equals("XAU_GRAM", ignoreCase = true)) "Gold grams" else acc.marketSymbol
+            append(" · Set units to sync ($friendlyTicker)")
+        }
+        if (!acc.includeInTotal) append(" · Excluded from Net Worth")
+    }
+
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(14.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(accent.copy(alpha = 0.14f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = IconCatalog.resolve(acc.iconName),
+                        contentDescription = null,
+                        tint = accent
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = acc.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        text = FormatUtils.formatMoney(item.currentBalance, acc.currency),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = if (item.currentBalance < 0) ExpenseRed else MaterialTheme.colorScheme.onSurface
+                    )
+                    if (!acc.currency.equals(baseCurrency, ignoreCase = true)) {
+                        Text(
+                            text = "≈ ${FormatUtils.formatMoney(item.balanceInBaseCurrency, baseCurrency)}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+            if (acc.autoRechargeSourceAccountId != null && item.currentBalance < acc.autoRechargeMinBalance - 0.005) {
+                val srcName = accountNameMap[acc.autoRechargeSourceAccountId] ?: "Linked Bank"
+                OutlinedButton(
+                    onClick = { onTopUpNow(acc, srcName) },
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                ) {
+                    Text("Top Up Now from $srcName")
+                }
+            }
+        }
     }
 }
 
@@ -427,204 +454,252 @@ private fun AccountEditorDialog(
         rechargeCandidates.firstOrNull { it.id == id }?.name
     } ?: "None (Disabled)"
 
-    AlertDialog(
+    val isWide = rememberIsWideScreen()
+    val showAutoRechargePicker = type == AccountType.E_WALLET || type == AccountType.OTHER || rechargeSourceId != null
+
+    Dialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (initial == null) "Add Account" else "Edit Account") },
-        text = {
-            Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Account Name (e.g., OCBC, PayLah)") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier
+                .widthIn(max = if (isWide) 640.dp else 520.dp)
+                .fillMaxWidth(0.92f),
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 6.dp
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = if (initial == null) "Add Account" else "Edit Account",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(start = 22.dp, end = 22.dp, top = 20.dp, bottom = 10.dp)
                 )
-                ExposedDropdownMenuBox(
-                    expanded = typeExpanded,
-                    onExpandedChange = { typeExpanded = !typeExpanded }
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+                Column(
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 22.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     OutlinedTextField(
-                        value = type.displayName,
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Account Type") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(typeExpanded) },
-                        modifier = Modifier
-                            .menuAnchor(MenuAnchorType.PrimaryNotEditable)
-                            .fillMaxWidth()
-                    )
-                    ExposedDropdownMenu(expanded = typeExpanded, onDismissRequest = { typeExpanded = false }) {
-                        AccountType.entries.forEach { t ->
-                            DropdownMenuItem(
-                                text = { Text(t.displayName) },
-                                onClick = {
-                                    type = t
-                                    typeExpanded = false
-                                }
-                            )
-                        }
-                    }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = balanceText,
-                        onValueChange = { balanceText = it },
-                        label = { Text(if (initial == null) "Initial Balance" else "Current Balance") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
+                        value = name,
+                        onValueChange = { name = it },
+                        label = { Text("Account Name (e.g., OCBC, PayLah)") },
                         singleLine = true,
-                        modifier = Modifier.weight(1.4f)
+                        modifier = Modifier.fillMaxWidth()
                     )
-                    CurrencyDropdown(
-                        selectedCurrency = currency,
-                        onSelectCurrency = { currency = it },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-
-                if (type == AccountType.E_WALLET || type == AccountType.BANK || type == AccountType.OTHER) {
                     ExposedDropdownMenuBox(
-                        expanded = rechargeExpanded,
-                        onExpandedChange = { rechargeExpanded = !rechargeExpanded }
+                        expanded = typeExpanded,
+                        onExpandedChange = { typeExpanded = !typeExpanded }
                     ) {
                         OutlinedTextField(
-                            value = rechargeSourceLabel,
+                            value = type.displayName,
                             onValueChange = {},
                             readOnly = true,
-                            label = { Text("Auto-Recharge From (if < 0)") },
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(rechargeExpanded) },
+                            label = { Text("Account Type") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(typeExpanded) },
                             modifier = Modifier
                                 .menuAnchor(MenuAnchorType.PrimaryNotEditable)
                                 .fillMaxWidth()
                         )
-                        ExposedDropdownMenu(
-                            expanded = rechargeExpanded,
-                            onDismissRequest = { rechargeExpanded = false }
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text("None (Disabled)") },
-                                onClick = {
-                                    rechargeSourceId = null
-                                    rechargeExpanded = false
-                                }
-                            )
-                            rechargeCandidates.forEach { src ->
+                        ExposedDropdownMenu(expanded = typeExpanded, onDismissRequest = { typeExpanded = false }) {
+                            AccountType.entries.forEach { t ->
                                 DropdownMenuItem(
-                                    text = { Text("${src.name} (${src.currency})") },
+                                    text = { Text(t.displayName) },
                                     onClick = {
-                                        rechargeSourceId = src.id
-                                        rechargeExpanded = false
+                                        type = t
+                                        typeExpanded = false
                                     }
                                 )
                             }
                         }
                     }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = balanceText,
+                            onValueChange = { balanceText = it },
+                            label = { Text(if (initial == null) "Initial Balance" else "Current Balance") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
+                            singleLine = true,
+                            modifier = Modifier.weight(1.4f)
+                        )
+                        CurrencyDropdown(
+                            selectedCurrency = currency,
+                            onSelectCurrency = { currency = it },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    if (showAutoRechargePicker) {
+                        ExposedDropdownMenuBox(
+                            expanded = rechargeExpanded,
+                            onExpandedChange = { rechargeExpanded = !rechargeExpanded }
+                        ) {
+                            OutlinedTextField(
+                                value = rechargeSourceLabel,
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("Auto-Recharge From Bank (if wallet < 0)") },
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(rechargeExpanded) },
+                                modifier = Modifier
+                                    .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                                    .fillMaxWidth()
+                            )
+                            ExposedDropdownMenu(
+                                expanded = rechargeExpanded,
+                                onDismissRequest = { rechargeExpanded = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("None (Disabled)") },
+                                    onClick = {
+                                        rechargeSourceId = null
+                                        rechargeExpanded = false
+                                    }
+                                )
+                                rechargeCandidates.forEach { src ->
+                                    DropdownMenuItem(
+                                        text = { Text("${src.name} (${src.currency})") },
+                                        onClick = {
+                                            rechargeSourceId = src.id
+                                            rechargeExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    if (type == AccountType.INVESTMENT) {
+                        OutlinedTextField(
+                            value = marketSymbol,
+                            onValueChange = { marketSymbol = it },
+                            label = { Text("Live Price Ticker (e.g. XAU_GRAM for Gold, ES3.SI, SPY)") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = holdingUnitsText,
+                            onValueChange = { holdingUnitsText = it },
+                            label = { Text("Units / Shares / Gold Grams (for live sync)") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Include in Net Worth", style = MaterialTheme.typography.bodyMedium)
+                        Switch(checked = includeInTotal, onCheckedChange = { includeInTotal = it })
+                    }
                 }
 
-                if (type == AccountType.INVESTMENT) {
-                    OutlinedTextField(
-                        value = marketSymbol,
-                        onValueChange = { marketSymbol = it },
-                        label = { Text("Live Ticker (e.g. XAU_GRAM, ES3.SI, VWRA.L, SPY)") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = holdingUnitsText,
-                        onValueChange = { holdingUnitsText = it },
-                        label = { Text("Units / Shares / Gold Grams (for live sync)") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Include in Net Worth", style = MaterialTheme.typography.bodyMedium)
-                    Switch(checked = includeInTotal, onCheckedChange = { includeInTotal = it })
+                    if (initial != null) {
+                        TextButton(
+                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                            onClick = { showRemoveConfirm = true }
+                        ) {
+                            Icon(Icons.Rounded.DeleteOutline, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Remove")
+                        }
+                    } else {
+                        Spacer(modifier = Modifier.width(1.dp))
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(onClick = onDismiss) { Text("Cancel") }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            enabled = name.isNotBlank(),
+                            onClick = {
+                                val targetBal = balanceText.toDoubleOrNull() ?: 0.0
+                                val parsedUnits = holdingUnitsText.toDoubleOrNull()?.takeIf { it > 0.0 }
+                                val cleanSymbol = marketSymbol.trim().uppercase().takeIf { it.isNotEmpty() }
+                                onSave(
+                                    AccountEntity(
+                                        id = initial?.id ?: 0L,
+                                        name = name.trim(),
+                                        type = type,
+                                        currency = currency.uppercase(),
+                                        initialBalance = initial?.initialBalance ?: targetBal,
+                                        iconName = initial?.iconName ?: defaultIcon,
+                                        colorHex = initial?.colorHex ?: 0xFF0D6E52L,
+                                        includeInTotal = includeInTotal,
+                                        isArchived = false,
+                                        createdAt = initial?.createdAt ?: System.currentTimeMillis(),
+                                        autoRechargeSourceAccountId = rechargeSourceId,
+                                        autoRechargeMinBalance = initial?.autoRechargeMinBalance ?: 0.0,
+                                        marketSymbol = cleanSymbol,
+                                        holdingUnits = parsedUnits,
+                                        lastSyncedMarketValue = if (parsedUnits != null && cleanSymbol != null) {
+                                            initial?.lastSyncedMarketValue
+                                        } else {
+                                            null
+                                        },
+                                        lastMarketSyncAt = initial?.lastMarketSyncAt ?: 0L
+                                    ),
+                                    targetBal
+                                )
+                            }
+                        ) { Text("Save") }
+                    }
                 }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                enabled = name.isNotBlank(),
-                onClick = {
-                    val targetBal = balanceText.toDoubleOrNull() ?: 0.0
-                    val parsedUnits = holdingUnitsText.toDoubleOrNull()?.takeIf { it > 0.0 }
-                    val cleanSymbol = marketSymbol.trim().uppercase().takeIf { it.isNotEmpty() }
-                    onSave(
-                        AccountEntity(
-                            id = initial?.id ?: 0L,
-                            name = name.trim(),
-                            type = type,
-                            currency = currency.uppercase(),
-                            initialBalance = initial?.initialBalance ?: targetBal,
-                            iconName = initial?.iconName ?: defaultIcon,
-                            colorHex = initial?.colorHex ?: 0xFF0D6E52L,
-                            includeInTotal = includeInTotal,
-                            isArchived = false,
-                            createdAt = initial?.createdAt ?: System.currentTimeMillis(),
-                            autoRechargeSourceAccountId = rechargeSourceId,
-                            autoRechargeMinBalance = initial?.autoRechargeMinBalance ?: 0.0,
-                            marketSymbol = cleanSymbol,
-                            holdingUnits = parsedUnits,
-                            lastSyncedMarketValue = if (parsedUnits != null && cleanSymbol != null) {
-                                initial?.lastSyncedMarketValue
-                            } else {
-                                null
-                            },
-                            lastMarketSyncAt = initial?.lastMarketSyncAt ?: 0L
-                        ),
-                        targetBal
-                    )
-                }
-            ) { Text("Save") }
-        },
-        dismissButton = {
-            Row {
-                if (initial != null) {
-                    TextButton(
-                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                        onClick = { showRemoveConfirm = true }
-                    ) { Text("Remove") }
-                }
-                TextButton(onClick = onDismiss) { Text("Cancel") }
             }
         }
-    )
+    }
 
     if (showRemoveConfirm && initial != null) {
         AlertDialog(
             onDismissRequest = { showRemoveConfirm = false },
             title = { Text("Remove '${initial.name}'?") },
             text = {
-                Text(
-                    "Choose 'Hide (Archive)' to keep historical records intact without showing it in Accounts, or 'Delete Permanently' to remove the account entry."
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                    onClick = {
-                        showRemoveConfirm = false
-                        onDeletePermanently(initial)
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Choose how you want to remove this account:",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    OutlinedButton(
+                        onClick = {
+                            showRemoveConfirm = false
+                            onArchive(initial)
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Hide Account (Archive & Keep History)")
                     }
-                ) { Text("Delete Permanently") }
-            },
-            dismissButton = {
-                Row {
-                    TextButton(onClick = {
-                        showRemoveConfirm = false
-                        onArchive(initial)
-                    }) { Text("Hide (Archive)") }
-                    TextButton(onClick = { showRemoveConfirm = false }) { Text("Cancel") }
+                    Button(
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error,
+                            contentColor = MaterialTheme.colorScheme.onError
+                        ),
+                        onClick = {
+                            showRemoveConfirm = false
+                            onDeletePermanently(initial)
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Delete Account Permanently")
+                    }
                 }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showRemoveConfirm = false }) { Text("Cancel") }
             }
         )
     }

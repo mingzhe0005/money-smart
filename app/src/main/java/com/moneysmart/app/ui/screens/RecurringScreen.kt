@@ -59,6 +59,8 @@ import com.moneysmart.app.data.local.entity.RecurrenceFrequency
 import com.moneysmart.app.data.local.entity.RecurringTransactionEntity
 import com.moneysmart.app.data.local.entity.TransactionType
 import com.moneysmart.app.ui.components.EmptyStateCard
+import com.moneysmart.app.ui.components.ResponsiveContentBox
+import com.moneysmart.app.ui.components.TopBarAddButton
 import com.moneysmart.app.ui.theme.ExpenseRed
 import com.moneysmart.app.ui.theme.IncomeGreen
 import com.moneysmart.app.ui.viewmodel.MoneySmartViewModel
@@ -89,95 +91,103 @@ fun RecurringScreen(
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
                     }
+                },
+                actions = {
+                    TopBarAddButton(
+                        label = "Add",
+                        onClick = {
+                            editingItem = null
+                            showDialog = true
+                        },
+                        modifier = Modifier.padding(end = 10.dp)
+                    )
                 }
             )
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = {
-                    editingItem = null
-                    showDialog = true
-                },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
-            ) {
-                Icon(Icons.Rounded.Add, contentDescription = "Add recurring transaction")
-            }
         }
     ) { innerPadding ->
-        if (recurringList.isEmpty()) {
-            Column(modifier = Modifier.padding(innerPadding)) {
-                EmptyStateCard(
-                    title = "No recurring transactions",
-                    subtitle = "Automate rent, salary, phone plans, or streaming subscriptions here."
-                )
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 88.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                items(recurringList, key = { it.id }) { item ->
-                    val accName = accountMap[item.accountId]?.name ?: "Account"
-                    val catName = item.categoryId?.let { categoryMap[it]?.name } ?: item.type.displayName
-                    val amountColor = if (item.type == TransactionType.INCOME) IncomeGreen else ExpenseRed
+        ResponsiveContentBox(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding),
+            maxWidth = 900.dp
+        ) {
+            if (recurringList.isEmpty()) {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    EmptyStateCard(
+                        title = "No recurring transactions",
+                        subtitle = "Automate rent, salary, phone plans, or streaming subscriptions here.",
+                        actionLabel = "Add Recurring Rule",
+                        onAction = {
+                            editingItem = null
+                            showDialog = true
+                        }
+                    )
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 24.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    items(recurringList, key = { it.id }) { item ->
+                        val accName = accountMap[item.accountId]?.name ?: "Account"
+                        val catName = item.categoryId?.let { categoryMap[it]?.name } ?: item.type.displayName
+                        val amountColor = if (item.type == TransactionType.INCOME) IncomeGreen else ExpenseRed
 
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                editingItem = item
-                                showDialog = true
-                            }
-                    ) {
-                        Column(modifier = Modifier.padding(14.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = item.title,
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                    Text(
-                                        text = "Every ${item.intervalCount} ${item.frequency.displayName.lowercase()} · $accName · $catName",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    Text(
-                                        text = "Next due: ${FormatUtils.formatDate(item.nextDueMillis)}",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    editingItem = item
+                                    showDialog = true
                                 }
-                                Column(horizontalAlignment = Alignment.End) {
-                                    Text(
-                                        text = FormatUtils.formatMoney(item.amount, item.currency),
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = amountColor
-                                    )
-                                    Switch(
-                                        checked = item.isActive,
-                                        onCheckedChange = { checked ->
-                                            viewModel.saveRecurring(item.copy(isActive = checked))
-                                        }
-                                    )
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = item.title,
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                        Text(
+                                            text = "Every ${item.intervalCount} ${item.frequency.displayName.lowercase()} · $accName · $catName",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Text(
+                                            text = "Next due: ${FormatUtils.formatDate(item.nextDueMillis)}",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    Column(horizontalAlignment = Alignment.End) {
+                                        Text(
+                                            text = FormatUtils.formatMoney(item.amount, item.currency),
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = amountColor
+                                        )
+                                        Switch(
+                                            checked = item.isActive,
+                                            onCheckedChange = { checked ->
+                                                viewModel.saveRecurring(item.copy(isActive = checked))
+                                            }
+                                        )
+                                    }
                                 }
-                            }
-                            Spacer(modifier = Modifier.height(6.dp))
-                            OutlinedButton(
-                                onClick = { viewModel.executeRecurringNow(item.id) },
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
-                            ) {
-                                Icon(Icons.Rounded.PlayArrow, contentDescription = null)
-                                Text("Record Now")
+                                Spacer(modifier = Modifier.height(6.dp))
+                                OutlinedButton(
+                                    onClick = { viewModel.executeRecurringNow(item.id) },
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                                ) {
+                                    Icon(Icons.Rounded.PlayArrow, contentDescription = null)
+                                    Text("Record Now")
+                                }
                             }
                         }
                     }

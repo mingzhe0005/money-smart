@@ -8,8 +8,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -24,11 +26,9 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -36,10 +36,12 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -57,6 +59,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.moneysmart.app.data.local.entity.AccountEntity
 import com.moneysmart.app.data.local.entity.CategoryEntity
@@ -65,6 +69,9 @@ import com.moneysmart.app.data.local.entity.SplitParticipantEntity
 import com.moneysmart.app.data.repository.LedgerCalculations
 import com.moneysmart.app.data.repository.SplitBillWithParticipants
 import com.moneysmart.app.ui.components.EmptyStateCard
+import com.moneysmart.app.ui.components.ResponsiveContentBox
+import com.moneysmart.app.ui.components.TopBarAddButton
+import com.moneysmart.app.ui.components.rememberIsWideScreen
 import com.moneysmart.app.ui.theme.IncomeGreen
 import com.moneysmart.app.ui.theme.WarningAmber
 import com.moneysmart.app.ui.viewmodel.MoneySmartViewModel
@@ -117,151 +124,96 @@ fun BillSplitterScreen(
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
                     }
+                },
+                actions = {
+                    TopBarAddButton(
+                        label = "New Split",
+                        onClick = { showCreateDialog = true },
+                        modifier = Modifier.padding(end = 10.dp)
+                    )
                 }
             )
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showCreateDialog = true },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
-            ) {
-                Icon(Icons.Rounded.Add, contentDescription = "New split bill")
-            }
         }
     ) { innerPadding ->
-        LazyColumn(
+        ResponsiveContentBox(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 88.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            maxWidth = 920.dp
         ) {
-            item {
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                    )
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp)
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 24.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                        )
                     ) {
-                        Text(
-                            text = "Total Owed to You",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = FormatUtils.formatMoney(totalPendingOwed, settings.baseCurrency),
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "$pendingBillCount active split bill(s) · Repayments go directly to your chosen account without inflating income",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-
-            item {
-                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                    SplitFilter.entries.forEachIndexed { idx, f ->
-                        SegmentedButton(
-                            selected = filter == f,
-                            onClick = { filter = f },
-                            shape = SegmentedButtonDefaults.itemShape(idx, SplitFilter.entries.size)
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
                         ) {
-                            Text(f.label, fontSize = 12.sp)
+                            Text(
+                                text = "Total Owed to You",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = FormatUtils.formatMoney(totalPendingOwed, settings.baseCurrency),
+                                style = MaterialTheme.typography.headlineMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "$pendingBillCount active split bill(s) · Repayments go directly to your chosen account without inflating income",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
                 }
-            }
 
-            if (filteredBills.isEmpty()) {
                 item {
-                    EmptyStateCard(
-                        title = "No ${filter.label.lowercase()} split bills",
-                        subtitle = "Tap + to log a group dinner or open any expense transaction and tap 'Split This Bill with Friends'."
-                    )
+                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                        SplitFilter.entries.forEachIndexed { idx, f ->
+                            SegmentedButton(
+                                selected = filter == f,
+                                onClick = { filter = f },
+                                shape = SegmentedButtonDefaults.itemShape(idx, SplitFilter.entries.size)
+                            ) {
+                                Text(f.label, fontSize = 13.sp)
+                            }
+                        }
+                    }
                 }
-            } else {
-                items(filteredBills, key = { it.bill.id }) { item ->
-                    val bill = item.bill
-                    val paidAccountName = accountMap[bill.paidAccountId]?.name ?: "Account"
-                    val catName = bill.categoryId?.let { categoryMap[it]?.name } ?: "Shared Expense"
-                    val progress = if (item.totalOwedByFriends > 0.0) {
-                        (item.totalRepaid / item.totalOwedByFriends).toFloat().coerceIn(0f, 1f)
-                    } else 1f
 
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(
-                            modifier = Modifier.padding(14.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                if (filteredBills.isEmpty()) {
+                    item {
+                        EmptyStateCard(
+                            title = "No ${filter.label.lowercase()} split bills",
+                            subtitle = "Create a split bill for group dinners, or open any expense transaction and tap 'Split This Bill with Friends'.",
+                            actionLabel = "Create Split Bill",
+                            onAction = { showCreateDialog = true }
+                        )
+                    }
+                } else {
+                    items(filteredBills, key = { it.bill.id }) { item ->
+                        val bill = item.bill
+                        val paidAccountName = accountMap[bill.paidAccountId]?.name ?: "Account"
+                        val catName = bill.categoryId?.let { categoryMap[it]?.name } ?: "Shared Expense"
+                        val progress = if (item.totalOwedByFriends > 0.0) {
+                            (item.totalRepaid / item.totalOwedByFriends).toFloat().coerceIn(0f, 1f)
+                        } else 1f
+
+                        Card(modifier = Modifier.fillMaxWidth()) {
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = bill.title,
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                    Text(
-                                        text = "${FormatUtils.formatDate(bill.timestamp)} · Paid via $paidAccountName · $catName",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                IconButton(onClick = { viewModel.deleteSplitBill(bill.id) }) {
-                                    Icon(
-                                        Icons.Rounded.Delete,
-                                        contentDescription = "Delete split record",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
-                                    text = "Total Paid: ${FormatUtils.formatMoney(bill.totalAmount, bill.currency)}",
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                                Text(
-                                    text = "Your Share: ${FormatUtils.formatMoney(bill.myShareAmount, bill.currency)}",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
-
-                            LinearProgressIndicator(
-                                progress = { progress },
-                                color = if (item.isFullySettled) IncomeGreen else WarningAmber,
-                                trackColor = MaterialTheme.colorScheme.surfaceVariant,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(6.dp)
-                                    .clip(RoundedCornerShape(3.dp))
-                            )
-                            Text(
-                                text = "Repaid: ${FormatUtils.formatMoney(item.totalRepaid, bill.currency)} / ${FormatUtils.formatMoney(item.totalOwedByFriends, bill.currency)}",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-
-                            HorizontalDivider()
-
-                            item.participants.forEach { p ->
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -269,42 +221,103 @@ fun BillSplitterScreen(
                                 ) {
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
-                                            text = p.friendName,
-                                            style = MaterialTheme.typography.bodyLarge,
-                                            fontWeight = FontWeight.Medium
+                                            text = bill.title,
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.SemiBold
                                         )
-                                        if (p.isSettled) {
-                                            val destName = p.repaidAccountId?.let { accountMap[it]?.name } ?: "Account"
-                                            Text(
-                                                text = "Paid ${FormatUtils.formatMoney(p.paidAmount, bill.currency)} → $destName",
-                                                style = MaterialTheme.typography.labelMedium,
-                                                color = IncomeGreen
-                                            )
-                                        } else {
-                                            Text(
-                                                text = "Owes ${FormatUtils.formatMoney(p.owedAmount, bill.currency)}",
-                                                style = MaterialTheme.typography.labelMedium,
-                                                color = WarningAmber
-                                            )
-                                        }
+                                        Text(
+                                            text = "${FormatUtils.formatDate(bill.timestamp)} · Paid via $paidAccountName · $catName",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
                                     }
+                                    IconButton(onClick = { viewModel.deleteSplitBill(bill.id) }) {
+                                        Icon(
+                                            Icons.Rounded.Delete,
+                                            contentDescription = "Delete split record",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
 
-                                    if (p.isSettled) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(
-                                                Icons.Rounded.CheckCircle,
-                                                contentDescription = "Settled",
-                                                tint = IncomeGreen
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = "Total Paid: ${FormatUtils.formatMoney(bill.totalAmount, bill.currency)}",
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                    Text(
+                                        text = "Your Share: ${FormatUtils.formatMoney(bill.myShareAmount, bill.currency)}",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+
+                                LinearProgressIndicator(
+                                    progress = { progress },
+                                    color = if (item.isFullySettled) IncomeGreen else WarningAmber,
+                                    trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(6.dp)
+                                        .clip(RoundedCornerShape(3.dp))
+                                )
+                                Text(
+                                    text = "Repaid: ${FormatUtils.formatMoney(item.totalRepaid, bill.currency)} / ${FormatUtils.formatMoney(item.totalOwedByFriends, bill.currency)}",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+
+                                HorizontalDivider()
+
+                                item.participants.forEach { p ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = p.friendName,
+                                                style = MaterialTheme.typography.bodyLarge,
+                                                fontWeight = FontWeight.Medium
                                             )
-                                            TextButton(onClick = { viewModel.unsettleSplitParticipant(p.id) }) {
-                                                Text("Undo")
+                                            if (p.isSettled) {
+                                                val destName = p.repaidAccountId?.let { accountMap[it]?.name } ?: "Account"
+                                                Text(
+                                                    text = "Paid ${FormatUtils.formatMoney(p.paidAmount, bill.currency)} → $destName",
+                                                    style = MaterialTheme.typography.labelMedium,
+                                                    color = IncomeGreen
+                                                )
+                                            } else {
+                                                Text(
+                                                    text = "Owes ${FormatUtils.formatMoney(p.owedAmount, bill.currency)}",
+                                                    style = MaterialTheme.typography.labelMedium,
+                                                    color = WarningAmber
+                                                )
                                             }
                                         }
-                                    } else {
-                                        OutlinedButton(
-                                            onClick = { settleTarget = item to p }
-                                        ) {
-                                            Text("Mark Paid")
+
+                                        if (p.isSettled) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Icon(
+                                                    Icons.Rounded.CheckCircle,
+                                                    contentDescription = "Settled",
+                                                    tint = IncomeGreen
+                                                )
+                                                TextButton(onClick = { viewModel.unsettleSplitParticipant(p.id) }) {
+                                                    Text("Undo")
+                                                }
+                                            }
+                                        } else {
+                                            OutlinedButton(
+                                                onClick = { settleTarget = item to p }
+                                            ) {
+                                                Text("Mark Paid")
+                                            }
                                         }
                                     }
                                 }
@@ -459,146 +472,247 @@ fun CreateSplitBillDialog(
     val friendsTotal = friendAmounts.sumOf { it.toDoubleOrNull() ?: 0.0 }
     val mySharePreview = (totalAmount - friendsTotal).coerceAtLeast(0.0)
 
-    AlertDialog(
+    val isWide = rememberIsWideScreen()
+    val validParticipants = friendNames.indices.mapNotNull { i ->
+        val name = friendNames[i].trim()
+        val owed = friendAmounts[i].toDoubleOrNull() ?: 0.0
+        if (name.isNotBlank() && owed > 0.0) name to owed else null
+    }
+
+    Dialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (lockExpenseDetails) "Split This Bill" else "New Split Bill") },
-        text = {
-            Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    label = { Text("Description (e.g. Dinner at Haidilao)") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                if (!lockExpenseDetails) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(
-                            value = totalText,
-                            onValueChange = { totalText = it },
-                            label = { Text("Total Paid") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            singleLine = true,
-                            modifier = Modifier.weight(1.4f)
-                        )
-                        CurrencyDropdown(
-                            selectedCurrency = currency,
-                            onSelectCurrency = { currency = it },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                    SimpleDropdownField(
-                        label = "Paid Using Account",
-                        selectedLabel = accounts.firstOrNull { it.id == paidAccountId }?.name ?: "Select",
-                        options = accounts.map { it.id to "${it.name} (${it.currency})" },
-                        onSelect = { paidAccountId = it }
-                    )
-                    SimpleDropdownField(
-                        label = "Category",
-                        selectedLabel = expenseCategories.firstOrNull { it.id == categoryId }?.name ?: "Select",
-                        options = expenseCategories.map { it.id to it.name },
-                        onSelect = { categoryId = it }
-                    )
-                } else {
-                    Text(
-                        text = "Bill Total: ${FormatUtils.formatMoney(totalAmount, currency)}",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-
-                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                    listOf(true to "Equal Split", false to "Custom Amounts").forEachIndexed { idx, (isEq, lbl) ->
-                        SegmentedButton(
-                            selected = equalSplit == isEq,
-                            onClick = { equalSplit = isEq },
-                            shape = SegmentedButtonDefaults.itemShape(idx, 2)
-                        ) {
-                            Text(lbl, fontSize = 12.sp)
-                        }
-                    }
-                }
-
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier
+                .widthIn(max = if (isWide) 700.dp else 520.dp)
+                .fillMaxWidth(0.92f)
+                .heightIn(max = 560.dp),
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 6.dp
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    text = "Friends (${friendNames.size}) · Your Share: ${FormatUtils.formatMoney(mySharePreview, currency)}",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.primary
+                    text = if (lockExpenseDetails) "Split This Bill" else "New Split Bill",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(start = 22.dp, end = 22.dp, top = 20.dp, bottom = 10.dp)
                 )
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
-                for (i in friendNames.indices) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 22.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    if (!lockExpenseDetails) {
+                        if (isWide) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                OutlinedTextField(
+                                    value = title,
+                                    onValueChange = { title = it },
+                                    label = { Text("Description (e.g. Dinner)") },
+                                    singleLine = true,
+                                    modifier = Modifier.weight(1.4f)
+                                )
+                                OutlinedTextField(
+                                    value = totalText,
+                                    onValueChange = { totalText = it },
+                                    label = { Text("Total Paid") },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                    singleLine = true,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                CurrencyDropdown(
+                                    selectedCurrency = currency,
+                                    onSelectCurrency = { currency = it },
+                                    modifier = Modifier.weight(0.8f)
+                                )
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                SimpleDropdownField(
+                                    label = "Paid Using Account",
+                                    selectedLabel = accounts.firstOrNull { it.id == paidAccountId }?.name ?: "Select",
+                                    options = accounts.map { it.id to "${it.name} (${it.currency})" },
+                                    onSelect = { paidAccountId = it },
+                                    modifier = Modifier.weight(1f)
+                                )
+                                SimpleDropdownField(
+                                    label = "Category",
+                                    selectedLabel = expenseCategories.firstOrNull { it.id == categoryId }?.name ?: "Select",
+                                    options = expenseCategories.map { it.id to it.name },
+                                    onSelect = { categoryId = it },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        } else {
+                            OutlinedTextField(
+                                value = title,
+                                onValueChange = { title = it },
+                                label = { Text("Description (e.g. Dinner at Haidilao)") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedTextField(
+                                    value = totalText,
+                                    onValueChange = { totalText = it },
+                                    label = { Text("Total Paid") },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                    singleLine = true,
+                                    modifier = Modifier.weight(1.4f)
+                                )
+                                CurrencyDropdown(
+                                    selectedCurrency = currency,
+                                    onSelectCurrency = { currency = it },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            SimpleDropdownField(
+                                label = "Paid Using Account",
+                                selectedLabel = accounts.firstOrNull { it.id == paidAccountId }?.name ?: "Select",
+                                options = accounts.map { it.id to "${it.name} (${it.currency})" },
+                                onSelect = { paidAccountId = it }
+                            )
+                            SimpleDropdownField(
+                                label = "Category",
+                                selectedLabel = expenseCategories.firstOrNull { it.id == categoryId }?.name ?: "Select",
+                                options = expenseCategories.map { it.id to it.name },
+                                onSelect = { categoryId = it }
+                            )
+                        }
+                    } else {
                         OutlinedTextField(
-                            value = friendNames[i],
-                            onValueChange = { friendNames[i] = it },
-                            label = { Text("Friend") },
+                            value = title,
+                            onValueChange = { title = it },
+                            label = { Text("Description") },
                             singleLine = true,
-                            modifier = Modifier.weight(1.2f)
+                            modifier = Modifier.fillMaxWidth()
                         )
-                        OutlinedTextField(
-                            value = friendAmounts[i],
-                            onValueChange = {
-                                equalSplit = false
-                                friendAmounts[i] = it
-                            },
-                            label = { Text("Owes") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            singleLine = true,
-                            modifier = Modifier.weight(0.9f)
+                        Text(
+                            text = "Bill Total: ${FormatUtils.formatMoney(totalAmount, currency)}",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
                         )
-                        if (friendNames.size > 1) {
-                            IconButton(onClick = {
-                                friendNames.removeAt(i)
-                                friendAmounts.removeAt(i)
-                            }) {
-                                Icon(Icons.Rounded.Close, contentDescription = "Remove friend")
+                    }
+
+                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                        listOf(true to "Equal Split", false to "Custom Amounts").forEachIndexed { idx, (isEq, lbl) ->
+                            SegmentedButton(
+                                selected = equalSplit == isEq,
+                                onClick = { equalSplit = isEq },
+                                shape = SegmentedButtonDefaults.itemShape(idx, 2)
+                            ) {
+                                Text(lbl, fontSize = 13.sp)
                             }
                         }
                     }
+
+                    Text(
+                        text = "Friends (${friendNames.size}) · Your Share: ${FormatUtils.formatMoney(mySharePreview, currency)}" +
+                            if (equalSplit) " (auto-calculated)" else "",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+
+                    for (i in friendNames.indices) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            OutlinedTextField(
+                                value = friendNames[i],
+                                onValueChange = { friendNames[i] = it },
+                                label = { Text("Friend Name") },
+                                singleLine = true,
+                                modifier = Modifier.weight(1.3f)
+                            )
+                            OutlinedTextField(
+                                value = friendAmounts[i],
+                                onValueChange = {
+                                    if (!equalSplit) {
+                                        friendAmounts[i] = it
+                                    }
+                                },
+                                readOnly = equalSplit,
+                                enabled = !equalSplit || friendAmounts[i].isNotBlank(),
+                                label = { Text(if (equalSplit) "Owes (Auto)" else "Owes") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                colors = if (equalSplit) {
+                                    OutlinedTextFieldDefaults.colors(
+                                        focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                                    )
+                                } else {
+                                    OutlinedTextFieldDefaults.colors()
+                                },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (friendNames.size > 1) {
+                                IconButton(onClick = {
+                                    friendNames.removeAt(i)
+                                    friendAmounts.removeAt(i)
+                                }) {
+                                    Icon(Icons.Rounded.Close, contentDescription = "Remove friend")
+                                }
+                            }
+                        }
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            friendNames.add("Friend ${friendNames.size + 1}")
+                            friendAmounts.add("")
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Rounded.Add, contentDescription = null)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Add Another Friend")
+                    }
                 }
 
-                OutlinedButton(
-                    onClick = {
-                        friendNames.add("Friend ${friendNames.size + 1}")
-                        friendAmounts.add("")
-                    },
-                    modifier = Modifier.fillMaxWidth()
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 22.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Rounded.Add, contentDescription = null)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Add Another Friend")
+                    TextButton(onClick = onDismiss) {
+                        Text("Cancel")
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Button(
+                        enabled = totalAmount > 0.0 && validParticipants.isNotEmpty(),
+                        onClick = {
+                            onSave(
+                                title.trim().ifBlank { "Shared Bill" },
+                                totalAmount,
+                                currency,
+                                paidAccountId,
+                                categoryId,
+                                validParticipants
+                            )
+                        }
+                    ) {
+                        Text("Create Split")
+                    }
                 }
             }
-        },
-        confirmButton = {
-            val validParticipants = friendNames.indices.mapNotNull { i ->
-                val name = friendNames[i].trim()
-                val owed = friendAmounts[i].toDoubleOrNull() ?: 0.0
-                if (name.isNotBlank() && owed > 0.0) name to owed else null
-            }
-            TextButton(
-                enabled = totalAmount > 0.0 && validParticipants.isNotEmpty(),
-                onClick = {
-                    onSave(
-                        title.trim().ifBlank { "Shared Bill" },
-                        totalAmount,
-                        currency,
-                        paidAccountId,
-                        categoryId,
-                        validParticipants
-                    )
-                }
-            ) { Text("Create Split") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
         }
-    )
+    }
 }

@@ -2,15 +2,19 @@ package com.moneysmart.app.ui.screens
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -21,8 +25,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ChevronLeft
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -33,6 +40,7 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -45,19 +53,26 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.moneysmart.app.data.local.entity.AccountEntity
 import com.moneysmart.app.data.local.entity.CategoryEntity
 import com.moneysmart.app.data.local.entity.TransactionEntity
 import com.moneysmart.app.data.local.entity.TransactionType
 import com.moneysmart.app.data.repository.LedgerCalculations
 import com.moneysmart.app.ui.components.EmptyStateCard
+import com.moneysmart.app.ui.components.IconCatalog
 import com.moneysmart.app.ui.components.MonthSelectorBar
+import com.moneysmart.app.ui.components.ResponsiveContentBox
+import com.moneysmart.app.ui.components.TransactionRow
+import com.moneysmart.app.ui.components.rememberIsWideScreen
 import com.moneysmart.app.ui.theme.ExpenseRed
 import com.moneysmart.app.ui.theme.IncomeGreen
 import com.moneysmart.app.ui.viewmodel.MoneySmartViewModel
@@ -65,6 +80,7 @@ import com.moneysmart.app.util.FormatUtils
 import java.time.Instant
 import java.time.YearMonth
 import java.time.ZoneId
+import kotlin.math.roundToInt
 
 private enum class StatsPeriod(val label: String) {
     MONTH("Monthly"),
@@ -80,9 +96,11 @@ private enum class StatsTypeFilter(val label: String) {
 private data class CategorySlice(
     val key: String,
     val name: String,
+    val iconName: String?,
     val color: Color,
     val amount: Double,
-    val percent: Float
+    val percent: Float,
+    val transactions: List<TransactionEntity>
 )
 
 private data class DualBarEntry(
@@ -110,15 +128,22 @@ private val statsChartPalette = listOf(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun StatsScreen(viewModel: MoneySmartViewModel) {
+fun StatsScreen(
+    viewModel: MoneySmartViewModel,
+    onTransactionClick: (Long) -> Unit = {}
+) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val transactions by viewModel.allTransactions.collectAsStateWithLifecycle()
+    val accounts by viewModel.activeAccounts.collectAsStateWithLifecycle()
     val categories by viewModel.categories.collectAsStateWithLifecycle()
     val selectedMonth by viewModel.selectedMonth.collectAsStateWithLifecycle()
+    val isWide = rememberIsWideScreen()
 
     var period by remember { mutableStateOf(StatsPeriod.MONTH) }
     var typeFilter by remember { mutableStateOf(StatsTypeFilter.EXPENSE) }
+    var drillDownSlice by remember { mutableStateOf<CategorySlice?>(null) }
 
+    val accountMap = remember(accounts) { accounts.associateBy { it.id } }
     val categoryMap = remember(categories) { categories.associateBy { it.id } }
     val zoneId = remember { ZoneId.systemDefault() }
 
@@ -166,21 +191,23 @@ fun StatsScreen(viewModel: MoneySmartViewModel) {
                 if (txType == TransactionType.EXPENSE) LedgerCalculations.effectiveExpenseBaseAmount(tx)
                 else LedgerCalculations.effectiveIncomeBaseAmount(tx)
             }
-            Triple(rootCatId, cat?.name ?: "Uncategorized", sum)
+            Triple(cat, list.sortedByDescending { it.timestamp }, sum)
         }.sortedByDescending { it.third }
 
-        return sorted.mapIndexed { index, (rootCatId, name, sum) ->
+        return sorted.mapIndexed { index, (cat, list, sum) ->
             val color = if (txType == TransactionType.INCOME) {
                 statsChartPalette[(index + 2) % statsChartPalette.size]
             } else {
                 statsChartPalette[index % statsChartPalette.size]
             }
             CategorySlice(
-                key = "${prefix}_${rootCatId ?: -1L}",
-                name = name,
+                key = "${prefix}_${cat?.id ?: -1L}",
+                name = cat?.name ?: "Uncategorized",
+                iconName = cat?.iconName,
                 color = color,
                 amount = sum,
-                percent = (sum / total).toFloat()
+                percent = (sum / total).toFloat(),
+                transactions = list
             )
         }
     }
@@ -199,16 +226,20 @@ fun StatsScreen(viewModel: MoneySmartViewModel) {
                     CategorySlice(
                         key = "both_inc",
                         name = "Income",
+                        iconName = "Payments",
                         color = IncomeGreen,
                         amount = totalIncome,
-                        percent = (totalIncome / sumBoth).toFloat()
+                        percent = (totalIncome / sumBoth).toFloat(),
+                        transactions = periodTxsAll.filter { LedgerCalculations.effectiveIncomeBaseAmount(it) > 0.0 }
                     ),
                     CategorySlice(
                         key = "both_exp",
                         name = "Expense",
+                        iconName = "ShoppingBag",
                         color = ExpenseRed,
                         amount = totalExpense,
-                        percent = (totalExpense / sumBoth).toFloat()
+                        percent = (totalExpense / sumBoth).toFloat(),
+                        transactions = periodTxsAll.filter { LedgerCalculations.effectiveExpenseBaseAmount(it) > 0.0 }
                     )
                 ).filter { it.amount > 0.0 }
             }
@@ -244,234 +275,354 @@ fun StatsScreen(viewModel: MoneySmartViewModel) {
         }
     }
 
+    @Composable
+    fun DonutOverviewCard(modifier: Modifier = Modifier) {
+        Card(modifier = modifier) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Box(
+                    modifier = Modifier.size(185.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    DonutChart(
+                        slices = donutSlices,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        val centerLabel = when (typeFilter) {
+                            StatsTypeFilter.EXPENSE -> "Total Expense"
+                            StatsTypeFilter.INCOME -> "Total Income"
+                            StatsTypeFilter.BOTH -> "Net Savings"
+                        }
+                        val centerVal = when (typeFilter) {
+                            StatsTypeFilter.EXPENSE -> totalExpense
+                            StatsTypeFilter.INCOME -> totalIncome
+                            StatsTypeFilter.BOTH -> totalIncome - totalExpense
+                        }
+                        Text(
+                            text = centerLabel,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = FormatUtils.formatMoney(centerVal, settings.baseCurrency),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                if (typeFilter == StatsTypeFilter.BOTH) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("Income", style = MaterialTheme.typography.labelMedium)
+                            Text(
+                                text = FormatUtils.formatMoney(totalIncome, settings.baseCurrency),
+                                style = MaterialTheme.typography.titleMedium,
+                                color = IncomeGreen,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("Expense", style = MaterialTheme.typography.labelMedium)
+                            Text(
+                                text = FormatUtils.formatMoney(totalExpense, settings.baseCurrency),
+                                style = MaterialTheme.typography.titleMedium,
+                                color = ExpenseRed,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Composable
+    fun TrendOverviewCard(modifier: Modifier = Modifier) {
+        Card(modifier = modifier) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (period == StatsPeriod.YEAR) "Monthly Trend" else "Weekly Trend",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    if (typeFilter == StatsTypeFilter.BOTH) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            LegendDot("Income", IncomeGreen)
+                            LegendDot("Expense", ExpenseRed)
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+                TrendBarChart(
+                    bars = dualBars,
+                    filter = typeFilter,
+                    baseCurrency = settings.baseCurrency,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(190.dp)
+                )
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(title = { Text("Spending Analytics", fontWeight = FontWeight.Bold) })
         }
     ) { innerPadding ->
-        LazyColumn(
+        ResponsiveContentBox(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            contentPadding = PaddingValues(bottom = 24.dp)
+            maxWidth = if (isWide) 1040.dp else 920.dp
         ) {
-            item {
-                if (period == StatsPeriod.MONTH) {
-                    MonthSelectorBar(
-                        yearMonth = selectedMonth,
-                        onPreviousMonth = { viewModel.previousMonth() },
-                        onNextMonth = { viewModel.nextMonth() }
-                    )
-                } else {
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        color = MaterialTheme.colorScheme.surface,
-                        tonalElevation = 1.dp
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 8.dp, vertical = 4.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = 28.dp)
+            ) {
+                item {
+                    if (period == StatsPeriod.MONTH) {
+                        MonthSelectorBar(
+                            yearMonth = selectedMonth,
+                            onPreviousMonth = { viewModel.previousMonth() },
+                            onNextMonth = { viewModel.nextMonth() }
+                        )
+                    } else {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            color = MaterialTheme.colorScheme.surface,
+                            tonalElevation = 1.dp
                         ) {
-                            IconButton(onClick = { viewModel.setMonth(selectedMonth.minusYears(1)) }) {
-                                Icon(Icons.Rounded.ChevronLeft, contentDescription = "Previous year")
-                            }
-                            Text(
-                                text = selectedMonth.year.toString(),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            IconButton(onClick = { viewModel.setMonth(selectedMonth.plusYears(1)) }) {
-                                Icon(Icons.Rounded.ChevronRight, contentDescription = "Next year")
-                            }
-                        }
-                    }
-                }
-
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                        StatsPeriod.entries.forEachIndexed { idx, p ->
-                            SegmentedButton(
-                                selected = period == p,
-                                onClick = { period = p },
-                                shape = SegmentedButtonDefaults.itemShape(idx, StatsPeriod.entries.size)
-                            ) {
-                                Text(p.label, fontSize = 12.sp)
-                            }
-                        }
-                    }
-                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                        StatsTypeFilter.entries.forEachIndexed { idx, tf ->
-                            SegmentedButton(
-                                selected = typeFilter == tf,
-                                onClick = { typeFilter = tf },
-                                shape = SegmentedButtonDefaults.itemShape(idx, StatsTypeFilter.entries.size)
-                            ) {
-                                Text(tf.label, fontSize = 12.sp)
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (donutSlices.isEmpty()) {
-                item {
-                    EmptyStateCard(
-                        title = "No ${typeFilter.label.lowercase()} data",
-                        subtitle = "Transactions recorded for this period will appear as charts here."
-                    )
-                }
-            } else {
-                item {
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp)
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Box(
-                                modifier = Modifier.size(195.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                DonutChart(
-                                    slices = donutSlices,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    val centerLabel = when (typeFilter) {
-                                        StatsTypeFilter.EXPENSE -> "Total Expense"
-                                        StatsTypeFilter.INCOME -> "Total Income"
-                                        StatsTypeFilter.BOTH -> "Net Savings"
-                                    }
-                                    val centerVal = when (typeFilter) {
-                                        StatsTypeFilter.EXPENSE -> totalExpense
-                                        StatsTypeFilter.INCOME -> totalIncome
-                                        StatsTypeFilter.BOTH -> totalIncome - totalExpense
-                                    }
-                                    Text(
-                                        text = centerLabel,
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    Text(
-                                        text = FormatUtils.formatMoney(centerVal, settings.baseCurrency),
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-
-                            if (typeFilter == StatsTypeFilter.BOTH) {
-                                Spacer(modifier = Modifier.height(10.dp))
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceEvenly
-                                ) {
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text("Income", style = MaterialTheme.typography.labelMedium)
-                                        Text(
-                                            text = FormatUtils.formatMoney(totalIncome, settings.baseCurrency),
-                                            style = MaterialTheme.typography.titleMedium,
-                                            color = IncomeGreen,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text("Expense", style = MaterialTheme.typography.labelMedium)
-                                        Text(
-                                            text = FormatUtils.formatMoney(totalExpense, settings.baseCurrency),
-                                            style = MaterialTheme.typography.titleMedium,
-                                            color = ExpenseRed,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(12.dp))
-                }
-
-                item {
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp)
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 8.dp, vertical = 4.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+                                IconButton(onClick = { viewModel.setMonth(selectedMonth.minusYears(1)) }) {
+                                    Icon(Icons.Rounded.ChevronLeft, contentDescription = "Previous year")
+                                }
                                 Text(
-                                    text = if (period == StatsPeriod.YEAR) "Monthly Trend" else "Weekly Trend",
+                                    text = selectedMonth.year.toString(),
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.SemiBold
                                 )
-                                if (typeFilter == StatsTypeFilter.BOTH) {
-                                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                        LegendDot("Income", IncomeGreen)
-                                        LegendDot("Expense", ExpenseRed)
+                                IconButton(onClick = { viewModel.setMonth(selectedMonth.plusYears(1)) }) {
+                                    Icon(Icons.Rounded.ChevronRight, contentDescription = "Next year")
+                                }
+                            }
+                        }
+                    }
+
+                    if (isWide) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 10.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            SingleChoiceSegmentedButtonRow(modifier = Modifier.weight(0.85f)) {
+                                StatsPeriod.entries.forEachIndexed { idx, p ->
+                                    SegmentedButton(
+                                        selected = period == p,
+                                        onClick = { period = p },
+                                        shape = SegmentedButtonDefaults.itemShape(idx, StatsPeriod.entries.size)
+                                    ) {
+                                        Text(p.label, fontSize = 13.sp)
                                     }
                                 }
                             }
-                            Spacer(modifier = Modifier.height(12.dp))
-                            TrendBarChart(
-                                bars = dualBars,
-                                filter = typeFilter,
+                            SingleChoiceSegmentedButtonRow(modifier = Modifier.weight(1.15f)) {
+                                StatsTypeFilter.entries.forEachIndexed { idx, tf ->
+                                    SegmentedButton(
+                                        selected = typeFilter == tf,
+                                        onClick = { typeFilter = tf },
+                                        shape = SegmentedButtonDefaults.itemShape(idx, StatsTypeFilter.entries.size)
+                                    ) {
+                                        Text(tf.label, fontSize = 13.sp)
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                                StatsPeriod.entries.forEachIndexed { idx, p ->
+                                    SegmentedButton(
+                                        selected = period == p,
+                                        onClick = { period = p },
+                                        shape = SegmentedButtonDefaults.itemShape(idx, StatsPeriod.entries.size)
+                                    ) {
+                                        Text(p.label, fontSize = 13.sp)
+                                    }
+                                }
+                            }
+                            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                                StatsTypeFilter.entries.forEachIndexed { idx, tf ->
+                                    SegmentedButton(
+                                        selected = typeFilter == tf,
+                                        onClick = { typeFilter = tf },
+                                        shape = SegmentedButtonDefaults.itemShape(idx, StatsTypeFilter.entries.size)
+                                    ) {
+                                        Text(tf.label, fontSize = 13.sp)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (donutSlices.isEmpty()) {
+                    item {
+                        EmptyStateCard(
+                            title = "No ${typeFilter.label.lowercase()} data",
+                            subtitle = "Transactions recorded for this period will appear as charts here."
+                        )
+                    }
+                } else {
+                    if (isWide) {
+                        item {
+                            Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(130.dp)
-                            )
+                                    .padding(horizontal = 16.dp)
+                                    .height(IntrinsicSize.Max),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                DonutOverviewCard(
+                                    modifier = Modifier
+                                        .weight(0.45f)
+                                        .fillMaxHeight()
+                                )
+                                TrendOverviewCard(
+                                    modifier = Modifier
+                                        .weight(0.55f)
+                                        .fillMaxHeight()
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(14.dp))
                         }
-                    }
-                    Spacer(modifier = Modifier.height(12.dp))
-                }
-
-                if (typeFilter == StatsTypeFilter.EXPENSE || typeFilter == StatsTypeFilter.BOTH) {
-                    if (typeFilter == StatsTypeFilter.BOTH && expenseSlices.isNotEmpty()) {
+                    } else {
                         item {
-                            Text(
-                                text = "Expenses by Category",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                            DonutOverviewCard(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp)
                             )
+                            Spacer(modifier = Modifier.height(12.dp))
                         }
-                    }
-                    items(expenseSlices, key = { it.key }) { slice ->
-                        CategorySliceCard(slice, settings.baseCurrency)
-                    }
-                }
-
-                if (typeFilter == StatsTypeFilter.INCOME || typeFilter == StatsTypeFilter.BOTH) {
-                    if (typeFilter == StatsTypeFilter.BOTH && incomeSlices.isNotEmpty()) {
                         item {
-                            Text(
-                                text = "Income by Category",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 4.dp)
+                            TrendOverviewCard(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp)
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                        }
+                    }
+
+                    if (typeFilter == StatsTypeFilter.EXPENSE || typeFilter == StatsTypeFilter.BOTH) {
+                        if (expenseSlices.isNotEmpty()) {
+                            item {
+                                Text(
+                                    text = if (typeFilter == StatsTypeFilter.BOTH) "Expenses by Category (Tap to view)" else "Categories (Tap to view)",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+                        items(expenseSlices, key = { it.key }) { slice ->
+                            CategorySliceCard(
+                                slice = slice,
+                                baseCurrency = settings.baseCurrency,
+                                onClick = { drillDownSlice = slice }
                             )
                         }
                     }
-                    items(incomeSlices, key = { it.key }) { slice ->
-                        CategorySliceCard(slice, settings.baseCurrency)
+
+                    if (typeFilter == StatsTypeFilter.INCOME || typeFilter == StatsTypeFilter.BOTH) {
+                        if (incomeSlices.isNotEmpty()) {
+                            item {
+                                Text(
+                                    text = if (typeFilter == StatsTypeFilter.BOTH) "Income by Category (Tap to view)" else "Categories (Tap to view)",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 4.dp)
+                                )
+                            }
+                        }
+                        items(incomeSlices, key = { it.key }) { slice ->
+                            CategorySliceCard(
+                                slice = slice,
+                                baseCurrency = settings.baseCurrency,
+                                onClick = { drillDownSlice = slice }
+                            )
+                        }
                     }
                 }
             }
         }
+    }
+
+    if (drillDownSlice != null) {
+        val selectedSlice = drillDownSlice!!
+        AlertDialog(
+            onDismissRequest = { drillDownSlice = null },
+            title = {
+                Text("${selectedSlice.name} (${selectedSlice.transactions.size})")
+            },
+            text = {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 56.dp, max = 320.dp)
+                ) {
+                    items(selectedSlice.transactions, key = { it.id }) { tx ->
+                        TransactionRow(
+                            transaction = tx,
+                            account = accountMap[tx.accountId],
+                            toAccount = tx.toAccountId?.let { accountMap[it] },
+                            category = tx.categoryId?.let { categoryMap[it] },
+                            baseCurrency = settings.baseCurrency,
+                            onClick = {
+                                drillDownSlice = null
+                                onTransactionClick(tx.id)
+                            }
+                        )
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { drillDownSlice = null }) { Text("Close") }
+            }
+        )
     }
 }
 
@@ -485,53 +636,75 @@ private fun LegendDot(label: String, color: Color) {
                 .background(color)
         )
         Spacer(modifier = Modifier.width(4.dp))
-        Text(label, style = MaterialTheme.typography.labelSmall)
+        Text(label, style = MaterialTheme.typography.labelMedium)
     }
 }
 
 @Composable
-private fun CategorySliceCard(slice: CategorySlice, baseCurrency: String) {
+private fun CategorySliceCard(
+    slice: CategorySlice,
+    baseCurrency: String,
+    onClick: () -> Unit
+) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp)
+            .clickable(onClick = onClick)
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(slice.color.copy(alpha = 0.16f)),
+                contentAlignment = Alignment.Center
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(12.dp)
-                            .clip(CircleShape)
-                            .background(slice.color)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
+                Icon(
+                    imageVector = IconCatalog.resolve(slice.iconName),
+                    contentDescription = null,
+                    tint = slice.color,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
                     Text(
                         text = slice.name,
                         style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.Medium
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "${FormatUtils.formatMoney(slice.amount, baseCurrency)} (${(slice.percent * 100f).roundToInt()}%)",
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
-                Text(
-                    text = "${FormatUtils.formatMoney(slice.amount, baseCurrency)} (${(slice.percent * 100).toInt()}%)",
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.SemiBold
+                Spacer(modifier = Modifier.height(6.dp))
+                LinearProgressIndicator(
+                    progress = { slice.percent.coerceIn(0f, 1f) },
+                    color = slice.color,
+                    trackColor = slice.color.copy(alpha = 0.16f),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(3.dp))
                 )
             }
-            Spacer(modifier = Modifier.height(6.dp))
-            LinearProgressIndicator(
-                progress = { slice.percent.coerceIn(0f, 1f) },
-                color = slice.color,
-                trackColor = slice.color.copy(alpha = 0.16f),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(6.dp)
-                    .clip(RoundedCornerShape(3.dp))
-            )
         }
     }
 }
@@ -570,6 +743,7 @@ private fun DonutChart(
 private fun TrendBarChart(
     bars: List<DualBarEntry>,
     filter: StatsTypeFilter,
+    baseCurrency: String,
     modifier: Modifier = Modifier
 ) {
     val maxVal = when (filter) {
@@ -577,68 +751,129 @@ private fun TrendBarChart(
         StatsTypeFilter.INCOME -> bars.maxOfOrNull { it.income } ?: 0.0
         StatsTypeFilter.BOTH -> bars.maxOfOrNull { maxOf(it.income, it.expense) } ?: 0.0
     }.coerceAtLeast(1.0)
+    val guideColor = MaterialTheme.colorScheme.outlineVariant
 
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.SpaceEvenly,
-        verticalAlignment = Alignment.Bottom
-    ) {
-        bars.forEach { entry ->
-            Column(
-                modifier = Modifier.weight(1f),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Bottom
+    Column(modifier = modifier) {
+        Text(
+            text = "Peak: ${FormatUtils.formatMoney(maxVal, baseCurrency)}",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 4.dp)
+        )
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+        ) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val dash = PathEffect.dashPathEffect(floatArrayOf(8f, 8f), 0f)
+                val topY = 18.dp.toPx()
+                val bottomY = (size.height - 24.dp.toPx()).coerceAtLeast(topY + 10f)
+                val midY = (topY + bottomY) / 2f
+                drawLine(guideColor, Offset(0f, topY), Offset(size.width, topY), strokeWidth = 1.dp.toPx(), pathEffect = dash)
+                drawLine(guideColor, Offset(0f, midY), Offset(size.width, midY), strokeWidth = 1.dp.toPx(), pathEffect = dash)
+                drawLine(guideColor, Offset(0f, bottomY), Offset(size.width, bottomY), strokeWidth = 1.dp.toPx())
+            }
+
+            Row(
+                modifier = Modifier.fillMaxSize(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.Bottom
             ) {
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth(),
-                    contentAlignment = Alignment.BottomCenter
-                ) {
-                    if (filter == StatsTypeFilter.BOTH) {
-                        val incRatio = (entry.income / maxVal).toFloat().coerceIn(0f, 1f)
-                        val expRatio = (entry.expense / maxVal).toFloat().coerceIn(0f, 1f)
-                        val barW = if (bars.size > 6) 6.dp else 14.dp
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(2.dp),
-                            verticalAlignment = Alignment.Bottom
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .width(barW)
-                                    .height((90f * incRatio).coerceAtLeast(if (entry.income > 0) 4f else 2f).dp)
-                                    .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
-                                    .background(if (entry.income > 0) IncomeGreen else IncomeGreen.copy(alpha = 0.15f))
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .width(barW)
-                                    .height((90f * expRatio).coerceAtLeast(if (entry.expense > 0) 4f else 2f).dp)
-                                    .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
-                                    .background(if (entry.expense > 0) ExpenseRed else ExpenseRed.copy(alpha = 0.15f))
-                            )
-                        }
-                    } else {
-                        val value = if (filter == StatsTypeFilter.INCOME) entry.income else entry.expense
-                        val color = if (filter == StatsTypeFilter.INCOME) IncomeGreen else ExpenseRed
-                        val ratio = (value / maxVal).toFloat().coerceIn(0f, 1f)
+                bars.forEach { entry ->
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Bottom
+                    ) {
                         Box(
                             modifier = Modifier
-                                .width(if (bars.size > 6) 14.dp else 28.dp)
-                                .height((90f * ratio).coerceAtLeast(if (value > 0) 4f else 2f).dp)
-                                .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
-                                .background(if (value > 0) color else color.copy(alpha = 0.15f))
+                                .weight(1f)
+                                .fillMaxWidth(),
+                            contentAlignment = Alignment.BottomCenter
+                        ) {
+                            if (filter == StatsTypeFilter.BOTH) {
+                                val incRatio = (entry.income / maxVal).toFloat().coerceIn(0f, 1f)
+                                val expRatio = (entry.expense / maxVal).toFloat().coerceIn(0f, 1f)
+                                val barW = if (bars.size > 6) 8.dp else 18.dp
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(3.dp),
+                                    verticalAlignment = Alignment.Bottom
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        if (entry.income > 0 && bars.size <= 6) {
+                                            Text(
+                                                text = entry.income.roundToInt().toString(),
+                                                fontSize = 10.sp,
+                                                color = IncomeGreen,
+                                                fontWeight = FontWeight.SemiBold,
+                                                maxLines = 1
+                                            )
+                                        }
+                                        Box(
+                                            modifier = Modifier
+                                                .width(barW)
+                                                .height((90f * incRatio).coerceAtLeast(if (entry.income > 0) 6f else 2f).dp)
+                                                .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                                                .background(if (entry.income > 0) IncomeGreen else IncomeGreen.copy(alpha = 0.16f))
+                                        )
+                                    }
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        if (entry.expense > 0 && bars.size <= 6) {
+                                            Text(
+                                                text = entry.expense.roundToInt().toString(),
+                                                fontSize = 10.sp,
+                                                color = ExpenseRed,
+                                                fontWeight = FontWeight.SemiBold,
+                                                maxLines = 1
+                                            )
+                                        }
+                                        Box(
+                                            modifier = Modifier
+                                                .width(barW)
+                                                .height((90f * expRatio).coerceAtLeast(if (entry.expense > 0) 6f else 2f).dp)
+                                                .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                                                .background(if (entry.expense > 0) ExpenseRed else ExpenseRed.copy(alpha = 0.16f))
+                                        )
+                                    }
+                                }
+                            } else {
+                                val value = if (filter == StatsTypeFilter.INCOME) entry.income else entry.expense
+                                val color = if (filter == StatsTypeFilter.INCOME) IncomeGreen else ExpenseRed
+                                val ratio = (value / maxVal).toFloat().coerceIn(0f, 1f)
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    if (value > 0) {
+                                        Text(
+                                            text = value.roundToInt().toString(),
+                                            fontSize = 10.sp,
+                                            color = color,
+                                            fontWeight = FontWeight.SemiBold,
+                                            maxLines = 1
+                                        )
+                                    }
+                                    Box(
+                                        modifier = Modifier
+                                            .width(if (bars.size > 6) 16.dp else 32.dp)
+                                            .height((90f * ratio).coerceAtLeast(if (value > 0) 6f else 2f).dp)
+                                            .clip(RoundedCornerShape(topStart = 5.dp, topEnd = 5.dp))
+                                            .background(if (value > 0) color else color.copy(alpha = 0.16f))
+                                    )
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = entry.label,
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Medium,
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1
                         )
                     }
                 }
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = entry.label,
-                    fontSize = 10.sp,
-                    textAlign = TextAlign.Center,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1
-                )
             }
         }
     }

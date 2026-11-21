@@ -46,6 +46,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.moneysmart.app.ui.components.ResponsiveContentBox
 import com.moneysmart.app.ui.viewmodel.MoneySmartViewModel
 import com.moneysmart.app.util.FormatUtils
 import kotlinx.coroutines.launch
@@ -128,174 +129,205 @@ fun BackupScreen(
             )
         }
     ) { innerPadding ->
-        Column(
+        ResponsiveContentBox(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .verticalScroll(rememberScrollState()),
+            maxWidth = 860.dp
         ) {
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
-                )
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(
-                        text = "Free Google Drive & Local Backup",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
                     )
-                    Text(
-                        text = "Money Smart uses Android's Storage Access Framework (100% free, zero cloud fees). " +
-                            "When choosing a backup folder, pick your Google Drive folder or a local folder on your device.",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
-            }
-
-            Card {
-                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Backup Destination", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                    Text(
-                        text = if (settings.backupFolderUri.isBlank()) {
-                            "No folder selected yet."
-                        } else {
-                            "Folder URI: ${settings.backupFolderUri}"
-                        },
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = if (settings.lastBackupTimestamp > 0L) {
-                            "Last backup: ${FormatUtils.formatDateTime(settings.lastBackupTimestamp)}"
-                        } else {
-                            "Last backup: Never"
-                        },
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    OutlinedButton(
-                        onClick = { folderPickerLauncher.launch(null) },
-                        modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Icon(Icons.Rounded.FolderOpen, contentDescription = null)
-                        Spacer(modifier = Modifier.padding(4.dp))
-                        Text("Choose Google Drive / Local Folder")
+                        Text(
+                            text = "Free Google Drive & Local Backup",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = "Money Smart uses Android's Storage Access Framework (100% free, zero cloud fees). " +
+                                "When choosing a backup folder, pick your Google Drive folder or a local folder on your device.",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
                     }
+                }
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Daily Auto-Backup", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
-                            Text(
-                                "Automatically saves a JSON snapshot every 24 hours",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                        Text("Backup Destination", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            text = if (settings.backupFolderUri.isBlank()) {
+                                "No folder selected yet."
+                            } else {
+                                "Folder URI: ${settings.backupFolderUri}"
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = if (settings.lastBackupTimestamp > 0L) {
+                                "Last backup: ${FormatUtils.formatDateTime(settings.lastBackupTimestamp)}"
+                            } else {
+                                "Last backup: Never"
+                            },
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        OutlinedButton(
+                            onClick = { folderPickerLauncher.launch(null) },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Rounded.FolderOpen, contentDescription = null)
+                            Spacer(modifier = Modifier.padding(4.dp))
+                            Text("Choose Google Drive / Local Folder")
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Daily Auto-Backup", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                                Text(
+                                    "Automatically saves a JSON snapshot every 24 hours",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Switch(
+                                checked = settings.autoBackupEnabled,
+                                enabled = settings.backupFolderUri.isNotBlank(),
+                                onCheckedChange = { viewModel.setAutoBackupEnabled(it) }
                             )
                         }
-                        Switch(
-                            checked = settings.autoBackupEnabled,
-                            enabled = settings.backupFolderUri.isNotBlank(),
-                            onCheckedChange = { viewModel.setAutoBackupEnabled(it) }
-                        )
                     }
                 }
-            }
 
-            Button(
-                enabled = !isWorking && settings.backupFolderUri.isNotBlank(),
-                onClick = {
-                    isWorking = true
-                    statusMessage = null
-                    scope.launch {
-                        val res = viewModel.backupJsonNow(Uri.parse(settings.backupFolderUri))
-                        statusMessage = res.fold(
-                            onSuccess = { name -> "Saved JSON backup: $name" },
-                            onFailure = { err -> "Backup failed: ${err.message}" }
-                        )
-                        isWorking = false
-                    }
-                },
-                modifier = Modifier.fillMaxWidth().height(48.dp)
-            ) {
-                Icon(Icons.Rounded.Backup, contentDescription = null)
-                Spacer(modifier = Modifier.padding(4.dp))
-                Text("Backup JSON Now")
-            }
+                Button(
+                    enabled = !isWorking && settings.backupFolderUri.isNotBlank(),
+                    onClick = {
+                        isWorking = true
+                        statusMessage = null
+                        scope.launch {
+                            val res = viewModel.backupJsonNow(Uri.parse(settings.backupFolderUri))
+                            statusMessage = res.fold(
+                                onSuccess = { name -> "Saved JSON backup: $name" },
+                                onFailure = { err -> "Backup failed: ${err.message}" }
+                            )
+                            isWorking = false
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().height(48.dp)
+                ) {
+                    Icon(Icons.Rounded.Backup, contentDescription = null)
+                    Spacer(modifier = Modifier.padding(4.dp))
+                    Text("Backup JSON Now")
+                }
 
-            OutlinedButton(
-                enabled = !isWorking && settings.backupFolderUri.isNotBlank(),
-                onClick = {
-                    isWorking = true
-                    statusMessage = null
-                    scope.launch {
-                        val res = viewModel.exportCsvNow(Uri.parse(settings.backupFolderUri))
-                        statusMessage = res.fold(
-                            onSuccess = { name -> "Exported CSV: $name" },
-                            onFailure = { err -> "CSV export failed: ${err.message}" }
-                        )
-                        isWorking = false
-                    }
-                },
-                modifier = Modifier.fillMaxWidth().height(48.dp)
-            ) {
-                Icon(Icons.Rounded.TableChart, contentDescription = null)
-                Spacer(modifier = Modifier.padding(4.dp))
-                Text("Export Transactions CSV")
-            }
+                OutlinedButton(
+                    enabled = !isWorking && settings.backupFolderUri.isNotBlank(),
+                    onClick = {
+                        isWorking = true
+                        statusMessage = null
+                        scope.launch {
+                            val res = viewModel.exportCsvNow(Uri.parse(settings.backupFolderUri))
+                            statusMessage = res.fold(
+                                onSuccess = { name -> "Exported CSV: $name" },
+                                onFailure = { err -> "CSV export failed: ${err.message}" }
+                            )
+                            isWorking = false
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().height(48.dp)
+                ) {
+                    Icon(Icons.Rounded.TableChart, contentDescription = null)
+                    Spacer(modifier = Modifier.padding(4.dp))
+                    Text("Export Transactions CSV")
+                }
 
-            OutlinedButton(
-                enabled = !isWorking,
-                onClick = { restoreFileLauncher.launch(arrayOf("application/json", "*/*")) },
-                modifier = Modifier.fillMaxWidth().height(48.dp)
-            ) {
-                Icon(Icons.Rounded.Restore, contentDescription = null)
-                Spacer(modifier = Modifier.padding(4.dp))
-                Text("Restore from JSON Backup File")
-            }
-
-            Card {
-                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (settings.backupFolderUri.isBlank()) {
                     Text(
-                        text = "Import from Money Manager (.xls / .xlsx / .csv)",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text = "Import your existing Money Manager Excel export from Google Drive or local storage. Accounts, categories, foreign currencies, and transfers are preserved and immediately used for AI habit learning.",
+                        text = "Tip: Choose a backup folder above first to enable 'Backup JSON Now' and 'Export Transactions CSV'.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Button(
-                        enabled = !isWorking,
-                        onClick = { importMoneyManagerLauncher.launch(arrayOf("*/*")) },
-                        modifier = Modifier.fillMaxWidth().height(48.dp)
+                }
+
+                OutlinedButton(
+                    enabled = !isWorking,
+                    onClick = { restoreFileLauncher.launch(arrayOf("application/json", "*/*")) },
+                    modifier = Modifier.fillMaxWidth().height(48.dp)
+                ) {
+                    Icon(Icons.Rounded.Restore, contentDescription = null)
+                    Spacer(modifier = Modifier.padding(4.dp))
+                    Text("Restore from JSON Backup File")
+                }
+
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(Icons.Rounded.FileUpload, contentDescription = null)
-                        Spacer(modifier = Modifier.padding(4.dp))
-                        Text("Import Money Manager Excel")
+                        Text(
+                            text = "Import from Money Manager (.xls / .xlsx / .csv)",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = "Import your existing Money Manager Excel export from Google Drive or local storage. Accounts, categories, foreign currencies, and transfers are preserved and immediately used for AI habit learning.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Button(
+                            enabled = !isWorking,
+                            onClick = { importMoneyManagerLauncher.launch(arrayOf("*/*")) },
+                            modifier = Modifier.fillMaxWidth().height(48.dp)
+                        ) {
+                            Icon(Icons.Rounded.FileUpload, contentDescription = null)
+                            Spacer(modifier = Modifier.padding(4.dp))
+                            Text("Import Money Manager Excel")
+                        }
                     }
                 }
-            }
 
-            if (isWorking) {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
-            }
+                if (isWorking) {
+                    CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
+                }
 
-            if (statusMessage != null) {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                ) {
-                    Text(
-                        text = statusMessage!!,
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(12.dp)
-                    )
+                if (statusMessage != null) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+                    ) {
+                        Text(
+                            text = statusMessage!!,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(12.dp)
+                        )
+                    }
                 }
             }
         }

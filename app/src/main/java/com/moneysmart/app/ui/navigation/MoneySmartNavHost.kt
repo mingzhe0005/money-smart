@@ -163,7 +163,10 @@ fun MoneySmartNavHost(
                 }
 
                 composable(Routes.STATS) {
-                    StatsScreen(viewModel = viewModel)
+                    StatsScreen(
+                        viewModel = viewModel,
+                        onTransactionClick = { id -> navController.navigate(Routes.addEditTransaction(id)) }
+                    )
                 }
 
                 composable(Routes.ACCOUNTS) {

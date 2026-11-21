@@ -59,6 +59,7 @@ import com.moneysmart.app.data.local.entity.NotificationProcessStatus
 import com.moneysmart.app.notification.PaymentNotificationListenerService
 import com.moneysmart.app.notification.ProcessOutcome
 import com.moneysmart.app.ui.components.EmptyStateCard
+import com.moneysmart.app.ui.components.ResponsiveContentBox
 import com.moneysmart.app.ui.theme.ExpenseRed
 import com.moneysmart.app.ui.theme.IncomeGreen
 import com.moneysmart.app.ui.theme.TransferBlue
@@ -123,75 +124,84 @@ fun AiActivityScreen(
             )
         }
     ) { innerPadding ->
-        LazyColumn(
+        ResponsiveContentBox(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            maxWidth = 900.dp
         ) {
-            item {
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = if (isListenerEnabled && settings.geminiApiKey.isNotBlank()) {
-                            IncomeGreen.copy(alpha = 0.12f)
-                        } else {
-                            WarningAmber.copy(alpha = 0.14f)
-                        }
-                    )
-                ) {
-                    Column(
-                        modifier = Modifier.padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = if (isListenerEnabled) Icons.Rounded.CheckCircle else Icons.Rounded.NotificationsOff,
-                                contentDescription = null,
-                                tint = if (isListenerEnabled) IncomeGreen else WarningAmber
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = if (isListenerEnabled) {
-                                    "Notification Listener Enabled"
-                                } else {
-                                    "Notification Listener Disabled"
-                                },
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-                        Text(
-                            text = "Monitored apps: ${settings.allowedPackages.size} selected · Gemini API key: ${if (settings.geminiApiKey.isBlank()) "Not set" else "Configured"}",
-                            style = MaterialTheme.typography.bodyMedium
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isListenerEnabled && settings.geminiApiKey.isNotBlank()) {
+                                IncomeGreen.copy(alpha = 0.12f)
+                            } else {
+                                WarningAmber.copy(alpha = 0.14f)
+                            }
                         )
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(
-                                onClick = {
-                                    context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = if (isListenerEnabled) Icons.Rounded.CheckCircle else Icons.Rounded.NotificationsOff,
+                                    contentDescription = null,
+                                    tint = if (isListenerEnabled) IncomeGreen else WarningAmber
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = if (isListenerEnabled) {
+                                        "Notification Listener Enabled"
+                                    } else {
+                                        "Notification Listener Disabled"
+                                    },
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                            Text(
+                                text = "Monitored apps: ${settings.allowedPackages.size} selected · Gemini API key: ${if (settings.geminiApiKey.isBlank()) "Not set" else "Configured"}",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(
+                                    onClick = {
+                                        context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+                                    }
+                                ) {
+                                    Text(if (isListenerEnabled) "System Access" else "Enable Access")
                                 }
-                            ) {
-                                Text(if (isListenerEnabled) "System Access" else "Enable Access")
+                                OutlinedButton(onClick = onOpenAllowlist) {
+                                    Icon(Icons.Rounded.Apps, contentDescription = null)
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Select Apps (${settings.allowedPackages.size})")
+                                }
                             }
-                            OutlinedButton(onClick = onOpenAllowlist) {
-                                Icon(Icons.Rounded.Apps, contentDescription = null)
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Select Apps (${settings.allowedPackages.size})")
-                            }
-                        }
-                        if (settings.geminiApiKey.isBlank()) {
-                            TextButton(onClick = onOpenSettings) {
-                                Text("Add Free Gemini API Key in Settings →")
+                            if (settings.geminiApiKey.isBlank()) {
+                                TextButton(onClick = onOpenSettings) {
+                                    Text("Add Free Gemini API Key in Settings →")
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            item {
-                Card {
-                    Column(
-                        modifier = Modifier.padding(14.dp),
+                item {
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -419,5 +429,6 @@ fun AiActivityScreen(
                 }
             }
         }
+    }
     }
 }

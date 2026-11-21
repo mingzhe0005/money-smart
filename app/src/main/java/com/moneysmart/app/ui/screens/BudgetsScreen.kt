@@ -52,6 +52,8 @@ import com.moneysmart.app.data.local.entity.CategoryEntity
 import com.moneysmart.app.data.local.entity.CategoryType
 import com.moneysmart.app.ui.components.EmptyStateCard
 import com.moneysmart.app.ui.components.MonthSelectorBar
+import com.moneysmart.app.ui.components.ResponsiveContentBox
+import com.moneysmart.app.ui.components.TopBarAddButton
 import com.moneysmart.app.ui.theme.ExpenseRed
 import com.moneysmart.app.ui.theme.IncomeGreen
 import com.moneysmart.app.ui.theme.WarningAmber
@@ -84,109 +86,115 @@ fun BudgetsScreen(
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
                     }
+                },
+                actions = {
+                    TopBarAddButton(
+                        label = "Add",
+                        onClick = {
+                            editingBudget = null
+                            showDialog = true
+                        },
+                        modifier = Modifier.padding(end = 10.dp)
+                    )
                 }
             )
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = {
-                    editingBudget = null
-                    showDialog = true
-                },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
-            ) {
-                Icon(Icons.Rounded.Add, contentDescription = "Add budget")
-            }
         }
     ) { innerPadding ->
-        Column(
+        ResponsiveContentBox(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
+                .padding(innerPadding),
+            maxWidth = 900.dp
         ) {
-            MonthSelectorBar(
-                yearMonth = selectedMonth,
-                onPreviousMonth = { viewModel.previousMonth() },
-                onNextMonth = { viewModel.nextMonth() }
-            )
-
-            if (budgetProgress.isEmpty()) {
-                EmptyStateCard(
-                    title = "No budgets set for ${FormatUtils.formatYearMonth(selectedMonth)}",
-                    subtitle = "Tap + to create an overall monthly budget or category spending limits."
+            Column(modifier = Modifier.fillMaxSize()) {
+                MonthSelectorBar(
+                    yearMonth = selectedMonth,
+                    onPreviousMonth = { viewModel.previousMonth() },
+                    onNextMonth = { viewModel.nextMonth() }
                 )
-            } else {
-                LazyColumn(
-                    contentPadding = PaddingValues(16.dp, 12.dp, 16.dp, 88.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    items(budgetProgress, key = { it.budget.id }) { item ->
-                        val ratio = item.progressRatio
-                        val pct = (ratio * 100f).toInt()
-                        val barColor = when {
-                            ratio >= 1f -> ExpenseRed
-                            ratio >= (item.budget.alertThresholdPercent / 100f) -> WarningAmber
-                            else -> IncomeGreen
-                        }
-                        val remaining = item.budget.limitAmount - item.spentAmount
 
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    editingBudget = item.budget
-                                    showDialog = true
-                                }
-                        ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = item.categoryName,
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.SemiBold
+                if (budgetProgress.isEmpty()) {
+                    EmptyStateCard(
+                        title = "No budgets set for ${FormatUtils.formatYearMonth(selectedMonth)}",
+                        subtitle = "Create an overall monthly budget or category spending limits with alerts.",
+                        actionLabel = "Add Budget",
+                        onAction = {
+                            editingBudget = null
+                            showDialog = true
+                        }
+                    )
+                } else {
+                    LazyColumn(
+                        contentPadding = PaddingValues(16.dp, 12.dp, 16.dp, 24.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(budgetProgress, key = { it.budget.id }) { item ->
+                            val ratio = item.progressRatio
+                            val pct = (ratio * 100f).toInt()
+                            val barColor = when {
+                                ratio >= 1f -> ExpenseRed
+                                ratio >= (item.budget.alertThresholdPercent / 100f) -> WarningAmber
+                                else -> IncomeGreen
+                            }
+                            val remaining = item.budget.limitAmount - item.spentAmount
+
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        editingBudget = item.budget
+                                        showDialog = true
+                                    }
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = item.categoryName,
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                        Text(
+                                            text = "$pct%",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = barColor
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    LinearProgressIndicator(
+                                        progress = { ratio.coerceIn(0f, 1f) },
+                                        color = barColor,
+                                        trackColor = barColor.copy(alpha = 0.16f),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(8.dp)
+                                            .clip(RoundedCornerShape(4.dp))
                                     )
-                                    Text(
-                                        text = "$pct%",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = barColor
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(8.dp))
-                                LinearProgressIndicator(
-                                    progress = { ratio.coerceIn(0f, 1f) },
-                                    color = barColor,
-                                    trackColor = barColor.copy(alpha = 0.16f),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(8.dp)
-                                        .clip(RoundedCornerShape(4.dp))
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(
-                                        text = "Spent ${FormatUtils.formatMoney(item.spentAmount, settings.baseCurrency)} / ${FormatUtils.formatMoney(item.budget.limitAmount, settings.baseCurrency)}",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    Text(
-                                        text = if (remaining >= 0) {
-                                            "${FormatUtils.formatMoney(remaining, settings.baseCurrency)} left"
-                                        } else {
-                                            "Over by ${FormatUtils.formatMoney(-remaining, settings.baseCurrency)}"
-                                        },
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Medium,
-                                        color = if (remaining >= 0) MaterialTheme.colorScheme.onSurface else ExpenseRed
-                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = "Spent ${FormatUtils.formatMoney(item.spentAmount, settings.baseCurrency)} / ${FormatUtils.formatMoney(item.budget.limitAmount, settings.baseCurrency)}",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Text(
+                                            text = if (remaining >= 0) {
+                                                "${FormatUtils.formatMoney(remaining, settings.baseCurrency)} left"
+                                            } else {
+                                                "Over by ${FormatUtils.formatMoney(-remaining, settings.baseCurrency)}"
+                                            },
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Medium,
+                                            color = if (remaining >= 0) MaterialTheme.colorScheme.onSurface else ExpenseRed
+                                        )
+                                    }
                                 }
                             }
                         }
