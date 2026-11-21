@@ -37,6 +37,7 @@ import com.moneysmart.app.ui.screens.AddEditTransactionScreen
 import com.moneysmart.app.ui.screens.AiActivityScreen
 import com.moneysmart.app.ui.screens.AppAllowlistScreen
 import com.moneysmart.app.ui.screens.BackupScreen
+import com.moneysmart.app.ui.screens.BillSplitterScreen
 import com.moneysmart.app.ui.screens.BudgetsScreen
 import com.moneysmart.app.ui.screens.CategoriesScreen
 import com.moneysmart.app.ui.screens.MoreScreen
@@ -53,6 +54,7 @@ object Routes {
     const val ACCOUNTS = "accounts"
     const val MORE = "more"
     const val ADD_EDIT_TRANSACTION = "add_edit_transaction?txId={txId}&type={type}"
+    const val BILL_SPLITTER = "bill_splitter"
     const val BUDGETS = "budgets"
     const val RECURRING = "recurring"
     const val AI_ACTIVITY = "ai_activity"
@@ -177,6 +179,7 @@ fun MoneySmartNavHost(
 
                 composable(Routes.MORE) {
                     MoreScreen(
+                        onOpenBillSplitter = { navController.navigate(Routes.BILL_SPLITTER) },
                         onOpenBudgets = { navController.navigate(Routes.BUDGETS) },
                         onOpenRecurring = { navController.navigate(Routes.RECURRING) },
                         onOpenAiActivity = { navController.navigate(Routes.AI_ACTIVITY) },
@@ -184,6 +187,13 @@ fun MoneySmartNavHost(
                         onOpenCategories = { navController.navigate(Routes.CATEGORIES) },
                         onOpenBackup = { navController.navigate(Routes.BACKUP) },
                         onOpenSettings = { navController.navigate(Routes.SETTINGS) }
+                    )
+                }
+
+                composable(Routes.BILL_SPLITTER) {
+                    BillSplitterScreen(
+                        viewModel = viewModel,
+                        onNavigateBack = { navController.popBackStack() }
                     )
                 }
 

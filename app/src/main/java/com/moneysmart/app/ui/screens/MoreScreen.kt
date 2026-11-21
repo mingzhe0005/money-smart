@@ -19,6 +19,7 @@ import androidx.compose.material.icons.rounded.Backup
 import androidx.compose.material.icons.rounded.Category
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.EventRepeat
+import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.Savings
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Card
@@ -45,6 +46,7 @@ private data class MoreMenuItem(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MoreScreen(
+    onOpenBillSplitter: () -> Unit,
     onOpenBudgets: () -> Unit,
     onOpenRecurring: () -> Unit,
     onOpenAiActivity: () -> Unit,
@@ -54,6 +56,12 @@ fun MoreScreen(
     onOpenSettings: () -> Unit
 ) {
     val menuItems = listOf(
+        MoreMenuItem(
+            title = "Bill Splitter & Reimbursements",
+            subtitle = "Split group bills and track friend repayments into any account",
+            icon = Icons.Rounded.Groups,
+            onClick = onOpenBillSplitter
+        ),
         MoreMenuItem(
             title = "AI Activity & Test Simulator",
             subtitle = "Notification access status, captured alerts log & live AI parser tester",

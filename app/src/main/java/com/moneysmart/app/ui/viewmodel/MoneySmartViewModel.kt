@@ -20,6 +20,7 @@ import com.moneysmart.app.data.repository.AccountWithBalance
 import com.moneysmart.app.data.repository.BudgetProgress
 import com.moneysmart.app.data.repository.MoneyManagerImportResult
 import com.moneysmart.app.data.repository.MoneySmartBackupSnapshot
+import com.moneysmart.app.data.repository.SplitBillWithParticipants
 import com.moneysmart.app.notification.ProcessOutcome
 import com.moneysmart.app.security.AppLockManager
 import com.moneysmart.app.worker.AutoBackupWorker
@@ -74,6 +75,9 @@ class MoneySmartViewModel(application: Application) : AndroidViewModel(applicati
     val rawNotifications: StateFlow<List<RawNotificationEntity>> = repository.observeRecentNotifications()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    val splitBills: StateFlow<List<SplitBillWithParticipants>> = repository.observeSplitBillsWithParticipants()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     fun previousMonth() {
         selectedMonth.value = selectedMonth.value.minusMonths(1)
     }
@@ -121,6 +125,46 @@ class MoneySmartViewModel(application: Application) : AndroidViewModel(applicati
 
     fun markTransactionsReviewed(ids: List<Long>) {
         viewModelScope.launch { repository.markTransactionsReviewed(ids) }
+    }
+
+    fun createSplitBill(
+        title: String,
+        totalAmount: Double,
+        currency: String,
+        paidAccountId: Long,
+        categoryId: Long?,
+        existingExpenseTxId: Long? = null,
+        participants: List<Pair<String, Double>>,
+        note: String = "",
+        timestamp: Long = System.currentTimeMillis(),
+        onCreated: () -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            repository.createSplitBill(
+                title = title,
+                totalAmount = totalAmount,
+                currency = currency,
+                paidAccountId = paidAccountId,
+                categoryId = categoryId,
+                existingExpenseTxId = existingExpenseTxId,
+                participants = participants,
+                note = note,
+                timestamp = timestamp
+            )
+            onCreated()
+        }
+    }
+
+    fun settleSplitParticipant(participantId: Long, repaidAccountId: Long, paidAmount: Double) {
+        viewModelScope.launch { repository.settleParticipant(participantId, repaidAccountId, paidAmount) }
+    }
+
+    fun unsettleSplitParticipant(participantId: Long) {
+        viewModelScope.launch { repository.unsettleParticipant(participantId) }
+    }
+
+    fun deleteSplitBill(billId: Long) {
+        viewModelScope.launch { repository.deleteSplitBill(billId) }
     }
 
     fun saveAccount(account: AccountEntity) {

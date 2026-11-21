@@ -18,6 +18,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -105,6 +106,7 @@ fun AddEditTransactionScreen(
     var showDatePicker by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var showSplitDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(settings.baseCurrency) {
         if (transactionId == null && loadedTx == null) {
@@ -410,7 +412,11 @@ fun AddEditTransactionScreen(
                         aiConfidence = base?.aiConfidence,
                         needsReview = false,
                         rawNotificationId = base?.rawNotificationId,
-                        createdAt = base?.createdAt ?: System.currentTimeMillis()
+                        createdAt = base?.createdAt ?: System.currentTimeMillis(),
+                        reimbursedAmount = base?.reimbursedAmount ?: 0.0,
+                        reimbursedBaseAmount = base?.reimbursedBaseAmount ?: 0.0,
+                        isReimbursement = base?.isReimbursement ?: false,
+                        splitBillId = base?.splitBillId
                     )
                     viewModel.saveTransaction(toSave) {
                         onNavigateBack()
@@ -421,6 +427,19 @@ fun AddEditTransactionScreen(
                     .height(50.dp)
             ) {
                 Text(if (loadedTx == null) "Save Transaction" else "Save Changes")
+            }
+
+            if (loadedTx != null && loadedTx?.type == TransactionType.EXPENSE && loadedTx?.splitBillId == null) {
+                OutlinedButton(
+                    onClick = { showSplitDialog = true },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                ) {
+                    Icon(Icons.Rounded.Groups, contentDescription = null)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Split This Bill with Friends")
+                }
             }
         }
     }
@@ -493,6 +512,36 @@ fun AddEditTransactionScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    if (showSplitDialog && loadedTx != null) {
+        val baseTx = loadedTx!!
+        CreateSplitBillDialog(
+            initialTitle = baseTx.merchant.ifBlank { "Shared Expense" },
+            initialAmount = baseTx.amount,
+            initialCurrency = baseTx.currency,
+            initialAccountId = baseTx.accountId,
+            initialCategoryId = baseTx.categoryId,
+            lockExpenseDetails = true,
+            accounts = accounts,
+            categories = categories,
+            onDismiss = { showSplitDialog = false },
+            onSave = { title, total, cur, accId, catId, participants ->
+                viewModel.createSplitBill(
+                    title = title,
+                    totalAmount = total,
+                    currency = cur,
+                    paidAccountId = accId,
+                    categoryId = catId,
+                    existingExpenseTxId = baseTx.id,
+                    participants = participants,
+                    onCreated = {
+                        showSplitDialog = false
+                        onNavigateBack()
+                    }
+                )
             }
         )
     }

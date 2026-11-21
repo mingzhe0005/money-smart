@@ -53,7 +53,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.moneysmart.app.data.local.entity.CategoryEntity
+import com.moneysmart.app.data.local.entity.TransactionEntity
 import com.moneysmart.app.data.local.entity.TransactionType
+import com.moneysmart.app.data.repository.LedgerCalculations
 import com.moneysmart.app.ui.components.EmptyStateCard
 import com.moneysmart.app.ui.components.MonthSelectorBar
 import com.moneysmart.app.ui.theme.ExpenseRed
@@ -99,17 +101,25 @@ fun StatsScreen(viewModel: MoneySmartViewModel) {
         }
     }
 
+    fun effectiveAmount(tx: TransactionEntity): Double = when (selectedType) {
+        TransactionType.EXPENSE -> LedgerCalculations.effectiveExpenseBaseAmount(tx)
+        TransactionType.INCOME -> LedgerCalculations.effectiveIncomeBaseAmount(tx)
+        TransactionType.TRANSFER -> tx.baseAmount
+    }
+
     val periodTransactions = remember(transactions, startMillis, endMillis, selectedType) {
         transactions.filter {
-            it.timestamp in startMillis until endMillis && it.type == selectedType
+            it.timestamp in startMillis until endMillis &&
+                it.type == selectedType &&
+                effectiveAmount(it) > 0.0
         }
     }
 
-    val totalAmount = remember(periodTransactions) {
-        periodTransactions.sumOf { it.baseAmount }
+    val totalAmount = remember(periodTransactions, selectedType) {
+        periodTransactions.sumOf { effectiveAmount(it) }
     }
 
-    val slices = remember(periodTransactions, categoryMap, totalAmount) {
+    val slices = remember(periodTransactions, categoryMap, totalAmount, selectedType) {
         if (totalAmount <= 0.0) emptyList()
         else {
             val grouped = periodTransactions.groupBy { tx ->
@@ -119,7 +129,7 @@ fun StatsScreen(viewModel: MoneySmartViewModel) {
             }
             grouped.map { (rootCatId, list) ->
                 val cat: CategoryEntity? = rootCatId?.let { categoryMap[it] }
-                val sum = list.sumOf { it.baseAmount }
+                val sum = list.sumOf { effectiveAmount(it) }
                 CategorySlice(
                     categoryId = rootCatId,
                     name = cat?.name ?: "Uncategorized",
@@ -137,7 +147,7 @@ fun StatsScreen(viewModel: MoneySmartViewModel) {
                 val ym = YearMonth.of(selectedMonth.year, m)
                 val (s, e) = FormatUtils.monthRangeMillis(ym, zoneId)
                 val sum = transactions.filter { it.timestamp in s until e && it.type == selectedType }
-                    .sumOf { it.baseAmount }
+                    .sumOf { effectiveAmount(it) }
                 ym.month.name.take(3) to sum
             }
         } else {
@@ -147,7 +157,7 @@ fun StatsScreen(viewModel: MoneySmartViewModel) {
                 val sum = periodTransactions.filter { tx ->
                     val dom = Instant.ofEpochMilli(tx.timestamp).atZone(zoneId).dayOfMonth
                     dom in range
-                }.sumOf { it.baseAmount }
+                }.sumOf { effectiveAmount(it) }
                 "${range.first}-${range.last}" to sum
             }
         }

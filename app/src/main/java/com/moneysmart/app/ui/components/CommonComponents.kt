@@ -101,18 +101,21 @@ fun TransactionRow(
     onLongClick: (() -> Unit)? = null
 ) {
     val isDark = isSystemInDarkTheme()
-    val amountColor = when (transaction.type) {
-        TransactionType.EXPENSE -> if (isDark) ExpenseRedDark else ExpenseRed
-        TransactionType.INCOME -> if (isDark) IncomeGreenDark else IncomeGreen
-        TransactionType.TRANSFER -> if (isDark) TransferBlueDark else TransferBlue
+    val amountColor = when {
+        transaction.isReimbursement -> if (isDark) TransferBlueDark else TransferBlue
+        transaction.type == TransactionType.EXPENSE -> if (isDark) ExpenseRedDark else ExpenseRed
+        transaction.type == TransactionType.INCOME -> if (isDark) IncomeGreenDark else IncomeGreen
+        else -> if (isDark) TransferBlueDark else TransferBlue
     }
-    val prefix = when (transaction.type) {
-        TransactionType.EXPENSE -> "-"
-        TransactionType.INCOME -> "+"
-        TransactionType.TRANSFER -> ""
+    val prefix = when {
+        transaction.isReimbursement -> "+"
+        transaction.type == TransactionType.EXPENSE -> "-"
+        transaction.type == TransactionType.INCOME -> "+"
+        else -> ""
     }
 
     val badgeColor = when {
+        transaction.isReimbursement -> TransferBlue
         transaction.type == TransactionType.TRANSFER -> TransferBlue
         category != null -> Color(category.colorHex)
         else -> MaterialTheme.colorScheme.primary
@@ -127,10 +130,10 @@ fun TransactionRow(
     }
 
     val subtitleParts = buildList {
-        if (transaction.type == TransactionType.TRANSFER) {
-            add("Transfer")
-        } else {
-            category?.name?.let { add(it) }
+        when {
+            transaction.isReimbursement -> add("Reimbursement")
+            transaction.type == TransactionType.TRANSFER -> add("Transfer")
+            else -> category?.name?.let { add(it) }
         }
         if (account != null) {
             if (transaction.type == TransactionType.TRANSFER && toAccount != null) {
@@ -253,13 +256,24 @@ fun TransactionRow(
         Spacer(modifier = Modifier.width(8.dp))
 
         Column(horizontalAlignment = Alignment.End) {
+            val displayAmount = if (transaction.type == TransactionType.EXPENSE && transaction.reimbursedAmount > 0.0) {
+                (transaction.amount - transaction.reimbursedAmount).coerceAtLeast(0.0)
+            } else {
+                transaction.amount
+            }
             Text(
-                text = "$prefix${FormatUtils.formatMoney(transaction.amount, transaction.currency)}",
+                text = "$prefix${FormatUtils.formatMoney(displayAmount, transaction.currency)}",
                 style = MaterialTheme.typography.titleMedium,
                 color = amountColor,
                 fontWeight = FontWeight.SemiBold
             )
-            if (!transaction.currency.equals(baseCurrency, ignoreCase = true)) {
+            if (transaction.type == TransactionType.EXPENSE && transaction.reimbursedAmount > 0.0) {
+                Text(
+                    text = "Paid ${FormatUtils.formatMoney(transaction.amount, transaction.currency)}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else if (!transaction.currency.equals(baseCurrency, ignoreCase = true)) {
                 Text(
                     text = "≈ ${FormatUtils.formatMoney(transaction.baseAmount, baseCurrency)}",
                     style = MaterialTheme.typography.labelSmall,

@@ -39,7 +39,7 @@ object HabitLearningEngine {
         val grouped = mutableMapOf<String, MutableMap<PatternKey, Int>>()
 
         for (tx in transactions) {
-            if (tx.isDeleted) continue
+            if (tx.isDeleted || tx.isReimbursement) continue
             if (tx.type != TransactionType.EXPENSE && tx.type != TransactionType.INCOME) continue
             val rawLabel = tx.merchant.ifBlank { tx.note }.trim()
             val normalized = normalizeKeyword(rawLabel) ?: continue

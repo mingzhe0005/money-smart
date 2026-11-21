@@ -79,6 +79,7 @@ import com.moneysmart.app.data.local.entity.AccountEntity
 import com.moneysmart.app.data.local.entity.CategoryEntity
 import com.moneysmart.app.data.local.entity.TransactionEntity
 import com.moneysmart.app.data.local.entity.TransactionType
+import com.moneysmart.app.data.repository.LedgerCalculations
 import com.moneysmart.app.notification.PaymentNotificationListenerService
 import com.moneysmart.app.ui.components.EmptyStateCard
 import com.moneysmart.app.ui.components.MonthSelectorBar
@@ -188,12 +189,12 @@ fun TransactionsScreen(
     }
 
     val monthIncome = remember(allTransactions, monthStart, monthEnd) {
-        allTransactions.filter { it.timestamp in monthStart until monthEnd && it.type == TransactionType.INCOME }
-            .sumOf { it.baseAmount }
+        allTransactions.filter { it.timestamp in monthStart until monthEnd }
+            .sumOf { LedgerCalculations.effectiveIncomeBaseAmount(it) }
     }
     val monthExpense = remember(allTransactions, monthStart, monthEnd) {
-        allTransactions.filter { it.timestamp in monthStart until monthEnd && it.type == TransactionType.EXPENSE }
-            .sumOf { it.baseAmount }
+        allTransactions.filter { it.timestamp in monthStart until monthEnd }
+            .sumOf { LedgerCalculations.effectiveExpenseBaseAmount(it) }
     }
 
     val selectableIds = remember(viewMode, filteredMonthTransactions, selectedCalendarDate, zoneId) {
@@ -586,8 +587,8 @@ private fun DailyTransactionsList(
         contentPadding = PaddingValues(bottom = 88.dp)
     ) {
         grouped.forEach { (date, dayTxs) ->
-            val dayIncome = dayTxs.filter { it.type == TransactionType.INCOME }.sumOf { it.baseAmount }
-            val dayExpense = dayTxs.filter { it.type == TransactionType.EXPENSE }.sumOf { it.baseAmount }
+            val dayIncome = dayTxs.sumOf { LedgerCalculations.effectiveIncomeBaseAmount(it) }
+            val dayExpense = dayTxs.sumOf { LedgerCalculations.effectiveExpenseBaseAmount(it) }
             item(key = "header_$date") {
                 Surface(
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
@@ -662,8 +663,8 @@ private fun MonthlyOverviewList(
         items(months, key = { it.toString() }) { ym ->
             val (start, end) = FormatUtils.monthRangeMillis(ym, zoneId)
             val monthTxs = allTransactions.filter { it.timestamp in start until end }
-            val inc = monthTxs.filter { it.type == TransactionType.INCOME }.sumOf { it.baseAmount }
-            val exp = monthTxs.filter { it.type == TransactionType.EXPENSE }.sumOf { it.baseAmount }
+            val inc = monthTxs.sumOf { LedgerCalculations.effectiveIncomeBaseAmount(it) }
+            val exp = monthTxs.sumOf { LedgerCalculations.effectiveExpenseBaseAmount(it) }
             val net = inc - exp
 
             Card(
@@ -768,8 +769,8 @@ private fun CalendarTransactionsView(
                             if (dayNum in 1..daysInMonth) {
                                 val date = yearMonth.atDay(dayNum)
                                 val dayTxs = byDate[date].orEmpty()
-                                val dayExp = dayTxs.filter { it.type == TransactionType.EXPENSE }.sumOf { it.baseAmount }
-                                val dayInc = dayTxs.filter { it.type == TransactionType.INCOME }.sumOf { it.baseAmount }
+                                val dayExp = dayTxs.sumOf { LedgerCalculations.effectiveExpenseBaseAmount(it) }
+                                val dayInc = dayTxs.sumOf { LedgerCalculations.effectiveIncomeBaseAmount(it) }
                                 val isSelected = date == selectedDate
 
                                 Box(

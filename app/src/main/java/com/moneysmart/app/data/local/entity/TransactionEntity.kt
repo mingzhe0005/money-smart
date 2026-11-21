@@ -49,5 +49,9 @@ data class TransactionEntity(
     val rawNotificationId: Long? = null,
     val isDeleted: Boolean = false,
     val createdAt: Long = System.currentTimeMillis(),
-    val updatedAt: Long = System.currentTimeMillis()
+    val updatedAt: Long = System.currentTimeMillis(),
+    val reimbursedAmount: Double = 0.0,
+    val reimbursedBaseAmount: Double = 0.0,
+    val isReimbursement: Boolean = false,
+    val splitBillId: Long? = null
 )

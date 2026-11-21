@@ -46,14 +46,14 @@ interface TransactionDao {
     ): List<TransactionEntity>
 
     @Query(
-        "SELECT COALESCE(SUM(baseAmount), 0.0) FROM transactions " +
+        "SELECT COALESCE(SUM(MAX(baseAmount - reimbursedBaseAmount, 0.0)), 0.0) FROM transactions " +
             "WHERE isDeleted = 0 AND type = 'EXPENSE' " +
             "AND timestamp >= :startMillis AND timestamp < :endMillis"
     )
     suspend fun getExpensesSumInRange(startMillis: Long, endMillis: Long): Double
 
     @Query(
-        "SELECT COALESCE(SUM(baseAmount), 0.0) FROM transactions " +
+        "SELECT COALESCE(SUM(MAX(baseAmount - reimbursedBaseAmount, 0.0)), 0.0) FROM transactions " +
             "WHERE isDeleted = 0 AND type = 'EXPENSE' " +
             "AND categoryId IN (:categoryIds) " +
             "AND timestamp >= :startMillis AND timestamp < :endMillis"

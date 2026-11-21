@@ -11,6 +11,8 @@ import com.moneysmart.app.data.local.entity.CategoryEntity
 import com.moneysmart.app.data.local.entity.ExchangeRateEntity
 import com.moneysmart.app.data.local.entity.RawNotificationEntity
 import com.moneysmart.app.data.local.entity.RecurringTransactionEntity
+import com.moneysmart.app.data.local.entity.SplitBillEntity
+import com.moneysmart.app.data.local.entity.SplitParticipantEntity
 import com.moneysmart.app.data.local.entity.TransactionEntity
 import com.moneysmart.app.data.local.entity.TransactionSource
 import com.moneysmart.app.data.local.entity.TransactionType
@@ -50,6 +52,16 @@ data class BudgetAlertEvent(
     val isExceeded: Boolean
 )
 
+data class SplitBillWithParticipants(
+    val bill: SplitBillEntity,
+    val participants: List<SplitParticipantEntity>
+) {
+    val totalOwedByFriends: Double get() = participants.sumOf { it.owedAmount }
+    val totalRepaid: Double get() = participants.sumOf { it.paidAmount }
+    val remainingOwed: Double get() = (totalOwedByFriends - totalRepaid).coerceAtLeast(0.0)
+    val isFullySettled: Boolean get() = participants.isNotEmpty() && participants.all { it.isSettled }
+}
+
 @OptIn(ExperimentalCoroutinesApi::class)
 class MoneyRepository(
     private val db: MoneySmartDatabase,
@@ -64,6 +76,7 @@ class MoneyRepository(
     private val recurringDao = db.recurringDao()
     private val rawNotificationDao = db.rawNotificationDao()
     private val exchangeRateDao = db.exchangeRateDao()
+    private val splitBillDao = db.splitBillDao()
 
     fun observeActiveAccounts(): Flow<List<AccountEntity>> = accountDao.observeActiveAccounts()
     fun observeAllAccounts(): Flow<List<AccountEntity>> = accountDao.observeAllAccounts()
@@ -73,6 +86,21 @@ class MoneyRepository(
     fun observeAllRecurring(): Flow<List<RecurringTransactionEntity>> = recurringDao.observeAllRecurring()
     fun observeRecentNotifications(): Flow<List<RawNotificationEntity>> = rawNotificationDao.observeRecentNotifications()
     fun observeBudgetsForMonth(yearMonth: String): Flow<List<BudgetEntity>> = budgetDao.observeBudgetsForMonth(yearMonth)
+
+    fun observeSplitBillsWithParticipants(): Flow<List<SplitBillWithParticipants>> {
+        return combine(
+            splitBillDao.observeAllSplitBills(),
+            splitBillDao.observeAllParticipants()
+        ) { bills, participants ->
+            val byBill = participants.groupBy { it.splitBillId }
+            bills.map { bill ->
+                SplitBillWithParticipants(
+                    bill = bill,
+                    participants = byBill[bill.id].orEmpty()
+                )
+            }
+        }
+    }
 
     fun observeAccountsWithBalances(): Flow<List<AccountWithBalance>> {
         val settingsAndRates = settingsDataStore.settingsFlow.flatMapLatest { settings ->
@@ -129,12 +157,12 @@ class MoneyRepository(
             val expenses = monthTransactions.filter { !it.isDeleted && it.type == TransactionType.EXPENSE }
             budgets.map { budget ->
                 val spent = if (budget.categoryId == null) {
-                    expenses.sumOf { it.baseAmount }
+                    expenses.sumOf { LedgerCalculations.effectiveExpenseBaseAmount(it) }
                 } else {
                     val childIds = categories.filter { it.parentId == budget.categoryId }.map { it.id }.toSet()
                     val relevantIds = childIds + budget.categoryId
                     expenses.filter { it.categoryId != null && it.categoryId in relevantIds }
-                        .sumOf { it.baseAmount }
+                        .sumOf { LedgerCalculations.effectiveExpenseBaseAmount(it) }
                 }
                 val label = budget.categoryId?.let { categoryMap[it]?.name } ?: "Overall Monthly Budget"
                 BudgetProgress(
@@ -543,4 +571,201 @@ class MoneyRepository(
         rawNotificationDao.findRecentIdentical(packageName, title, text, sinceMillis)
 
     suspend fun clearRawNotificationLog() = rawNotificationDao.deleteAll()
+
+    // Bill Splitter & Reimbursements
+    suspend fun createSplitBill(
+        title: String,
+        totalAmount: Double,
+        currency: String,
+        paidAccountId: Long,
+        categoryId: Long?,
+        existingExpenseTxId: Long? = null,
+        participants: List<Pair<String, Double>>,
+        note: String = "",
+        timestamp: Long = System.currentTimeMillis()
+    ): Long {
+        val settings = settingsDataStore.getCurrentSettings()
+        val now = System.currentTimeMillis()
+
+        var billIdCreated = 0L
+        var newExpenseIdForRecharge: TransactionEntity? = null
+
+        db.withTransaction {
+            val expenseTx: TransactionEntity
+            if (existingExpenseTxId != null && existingExpenseTxId > 0L) {
+                expenseTx = transactionDao.getById(existingExpenseTxId)
+                    ?: error("Linked expense transaction #$existingExpenseTxId not found")
+            } else {
+                val rateToBase = getExchangeRateToBase(currency, settings.baseCurrency)
+                val baseAmt = LedgerCalculations.computeBaseAmount(totalAmount, rateToBase)
+                val newTx = TransactionEntity(
+                    type = TransactionType.EXPENSE,
+                    amount = totalAmount,
+                    currency = currency.uppercase(),
+                    exchangeRateToBase = rateToBase,
+                    baseAmount = baseAmt,
+                    accountId = paidAccountId,
+                    categoryId = categoryId,
+                    merchant = title.trim(),
+                    note = note.trim(),
+                    timestamp = timestamp,
+                    source = TransactionSource.MANUAL,
+                    createdAt = now,
+                    updatedAt = now
+                )
+                val insertedTxId = transactionDao.insert(newTx)
+                expenseTx = newTx.copy(id = insertedTxId)
+                newExpenseIdForRecharge = expenseTx
+            }
+
+            val friendsTotal = participants.sumOf { it.second }
+            val myShare = (expenseTx.amount - friendsTotal).coerceAtLeast(0.0)
+            val cleanBill = SplitBillEntity(
+                title = title.trim().ifBlank { expenseTx.merchant.ifBlank { "Shared Bill" } },
+                totalAmount = expenseTx.amount,
+                myShareAmount = (myShare * 100.0).roundToLong() / 100.0,
+                currency = expenseTx.currency,
+                paidAccountId = expenseTx.accountId,
+                categoryId = expenseTx.categoryId,
+                expenseTransactionId = expenseTx.id,
+                timestamp = expenseTx.timestamp,
+                note = note.trim(),
+                createdAt = now
+            )
+            val billId = splitBillDao.insertBill(cleanBill)
+            billIdCreated = billId
+
+            val participantEntities = participants
+                .filter { it.first.isNotBlank() && it.second > 0.0 }
+                .map { (friendName, owed) ->
+                    SplitParticipantEntity(
+                        splitBillId = billId,
+                        friendName = friendName.trim(),
+                        owedAmount = (owed * 100.0).roundToLong() / 100.0
+                    )
+                }
+            if (participantEntities.isNotEmpty()) {
+                splitBillDao.insertParticipants(participantEntities)
+            }
+            transactionDao.update(expenseTx.copy(splitBillId = billId, updatedAt = now))
+        }
+
+        newExpenseIdForRecharge?.let { triggerAutoRechargeIfNeeded(it, now) }
+        return billIdCreated
+    }
+
+    suspend fun settleParticipant(
+        participantId: Long,
+        repaidAccountId: Long,
+        paidAmount: Double
+    ) {
+        val settings = settingsDataStore.getCurrentSettings()
+        val now = System.currentTimeMillis()
+        db.withTransaction {
+            val participant = splitBillDao.getParticipantById(participantId) ?: return@withTransaction
+            if (participant.isSettled) return@withTransaction
+            val bill = splitBillDao.getBillById(participant.splitBillId) ?: return@withTransaction
+            val expenseTx = transactionDao.getById(bill.expenseTransactionId)
+
+            val actualPaid = ((paidAmount.coerceAtLeast(0.01)) * 100.0).roundToLong() / 100.0
+            val rateToBase = expenseTx?.exchangeRateToBase
+                ?: getExchangeRateToBase(bill.currency, settings.baseCurrency)
+            val paidBase = LedgerCalculations.computeBaseAmount(actualPaid, rateToBase)
+
+            val repaymentTxId = transactionDao.insert(
+                TransactionEntity(
+                    type = TransactionType.INCOME,
+                    amount = actualPaid,
+                    currency = bill.currency,
+                    exchangeRateToBase = rateToBase,
+                    baseAmount = paidBase,
+                    accountId = repaidAccountId,
+                    categoryId = bill.categoryId,
+                    merchant = "Repayment: ${participant.friendName}",
+                    note = "Split bill: ${bill.title}",
+                    timestamp = now,
+                    source = TransactionSource.MANUAL,
+                    isReimbursement = true,
+                    splitBillId = bill.id,
+                    createdAt = now,
+                    updatedAt = now
+                )
+            )
+
+            splitBillDao.updateParticipant(
+                participant.copy(
+                    paidAmount = actualPaid,
+                    isSettled = true,
+                    repaidAccountId = repaidAccountId,
+                    repaymentTransactionId = repaymentTxId,
+                    settledAt = now
+                )
+            )
+
+            if (expenseTx != null) {
+                val newReimbursed = ((expenseTx.reimbursedAmount + actualPaid) * 100.0).roundToLong() / 100.0
+                val newReimbursedBase = ((expenseTx.reimbursedBaseAmount + paidBase) * 100.0).roundToLong() / 100.0
+                transactionDao.update(
+                    expenseTx.copy(
+                        reimbursedAmount = newReimbursed,
+                        reimbursedBaseAmount = newReimbursedBase,
+                        updatedAt = now
+                    )
+                )
+            }
+        }
+    }
+
+    suspend fun unsettleParticipant(participantId: Long) {
+        val now = System.currentTimeMillis()
+        db.withTransaction {
+            val participant = splitBillDao.getParticipantById(participantId) ?: return@withTransaction
+            if (!participant.isSettled) return@withTransaction
+            val bill = splitBillDao.getBillById(participant.splitBillId) ?: return@withTransaction
+
+            val repayTx = participant.repaymentTransactionId?.let { transactionDao.getById(it) }
+            if (repayTx != null) {
+                transactionDao.softDelete(repayTx.id, now)
+            }
+
+            val expenseTx = transactionDao.getById(bill.expenseTransactionId)
+            if (expenseTx != null) {
+                val paidBase = repayTx?.baseAmount
+                    ?: LedgerCalculations.computeBaseAmount(participant.paidAmount, expenseTx.exchangeRateToBase)
+                val newReimbursed = ((expenseTx.reimbursedAmount - participant.paidAmount).coerceAtLeast(0.0) * 100.0).roundToLong() / 100.0
+                val newReimbursedBase = ((expenseTx.reimbursedBaseAmount - paidBase).coerceAtLeast(0.0) * 100.0).roundToLong() / 100.0
+                transactionDao.update(
+                    expenseTx.copy(
+                        reimbursedAmount = newReimbursed,
+                        reimbursedBaseAmount = newReimbursedBase,
+                        updatedAt = now
+                    )
+                )
+            }
+
+            splitBillDao.updateParticipant(
+                participant.copy(
+                    paidAmount = 0.0,
+                    isSettled = false,
+                    repaidAccountId = null,
+                    repaymentTransactionId = null,
+                    settledAt = null
+                )
+            )
+        }
+    }
+
+    suspend fun deleteSplitBill(billId: Long) {
+        db.withTransaction {
+            val bill = splitBillDao.getBillById(billId)
+            if (bill != null) {
+                val expenseTx = transactionDao.getById(bill.expenseTransactionId)
+                if (expenseTx != null && expenseTx.splitBillId == billId) {
+                    transactionDao.update(expenseTx.copy(splitBillId = null))
+                }
+            }
+            splitBillDao.deleteParticipantsForBill(billId)
+            splitBillDao.deleteBill(billId)
+        }
+    }
 }
