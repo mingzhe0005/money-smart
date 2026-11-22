@@ -285,6 +285,7 @@ fun MoneySmartNavHost(
 
                 composable(Routes.MORE) {
                     MoreScreen(
+                        viewModel = viewModel,
                         onOpenBillSplitter = { navController.navigate(Routes.BILL_SPLITTER) },
                         onOpenBudgets = { navController.navigate(Routes.BUDGETS) },
                         onOpenRecurring = { navController.navigate(Routes.RECURRING) },

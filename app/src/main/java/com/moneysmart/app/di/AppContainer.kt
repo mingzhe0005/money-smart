@@ -3,6 +3,7 @@ package com.moneysmart.app.di
 import android.content.Context
 import com.moneysmart.app.data.local.MoneySmartDatabase
 import com.moneysmart.app.data.local.SettingsDataStore
+import com.moneysmart.app.data.remote.AppUpdateChecker
 import com.moneysmart.app.data.remote.ExchangeRateApiClient
 import com.moneysmart.app.data.remote.GeminiApiClient
 import com.moneysmart.app.data.remote.MarketPriceApiClient
@@ -19,6 +20,7 @@ class AppContainer(context: Context) {
     val geminiApiClient: GeminiApiClient = GeminiApiClient()
     val exchangeRateApiClient: ExchangeRateApiClient = ExchangeRateApiClient()
     val marketPriceApiClient: MarketPriceApiClient = MarketPriceApiClient()
+    val appUpdateChecker: AppUpdateChecker = AppUpdateChecker()
 
     val repository: MoneyRepository = MoneyRepository(
         db = database,

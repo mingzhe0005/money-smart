@@ -4,6 +4,7 @@ import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.moneysmart.app.BuildConfig
 import com.moneysmart.app.MoneySmartApp
 import com.moneysmart.app.data.local.AppSettings
 import com.moneysmart.app.data.local.ThemeMode
@@ -15,6 +16,7 @@ import com.moneysmart.app.data.local.entity.RawNotificationEntity
 import com.moneysmart.app.data.local.entity.RecurringTransactionEntity
 import com.moneysmart.app.data.local.entity.TransactionEntity
 import com.moneysmart.app.data.remote.AiParsedNotification
+import com.moneysmart.app.data.remote.AppUpdateInfo
 import com.moneysmart.app.data.remote.ProbedGeminiModel
 import com.moneysmart.app.data.repository.AccountWithBalance
 import com.moneysmart.app.data.repository.BudgetProgress
@@ -44,6 +46,7 @@ class MoneySmartViewModel(application: Application) : AndroidViewModel(applicati
     val moneyManagerImporter = container.moneyManagerImporter
     val geminiApiClient = container.geminiApiClient
     val notificationProcessor = container.notificationProcessor
+    private val appUpdateChecker = container.appUpdateChecker
 
     val settings: StateFlow<AppSettings> = settingsDataStore.settingsFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppSettings())
@@ -354,4 +357,7 @@ class MoneySmartViewModel(application: Application) : AndroidViewModel(applicati
 
     suspend fun importMoneyManagerFile(fileUri: Uri): Result<MoneyManagerImportResult> =
         moneyManagerImporter.importFromUri(fileUri)
+
+    suspend fun checkForAppUpdate(): Result<AppUpdateInfo> =
+        appUpdateChecker.checkLatestRelease(BuildConfig.VERSION_NAME)
 }
