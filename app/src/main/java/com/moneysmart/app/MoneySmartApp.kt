@@ -29,6 +29,7 @@ class MoneySmartApp : Application() {
         appScope.launch {
             val settings = container.settingsDataStore.getCurrentSettings()
             DefaultSeedData.seedDefaultsIfEmpty(container.database, settings.baseCurrency)
+            DefaultSeedData.reorganizeCategories(container.database)
             DefaultSeedData.ensurePayLahAutoRechargeLinked(container.database)
             container.repository.processDueRecurringTransactions()
             container.repository.syncExchangeRates(force = false)

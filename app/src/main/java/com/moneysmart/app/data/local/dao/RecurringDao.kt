@@ -34,6 +34,9 @@ interface RecurringDao {
     @Query("DELETE FROM recurring_transactions WHERE id = :id")
     suspend fun deleteById(id: Long)
 
+    @Query("UPDATE recurring_transactions SET categoryId = :newCategoryId WHERE categoryId = :oldCategoryId")
+    suspend fun reassignCategory(oldCategoryId: Long, newCategoryId: Long)
+
     @Query("DELETE FROM recurring_transactions")
     suspend fun deleteAll()
 }

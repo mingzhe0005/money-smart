@@ -91,6 +91,9 @@ interface TransactionDao {
     @Query("UPDATE transactions SET needsReview = 0, updatedAt = :updatedAt WHERE id IN (:ids)")
     suspend fun markReviewedBatch(ids: List<Long>, updatedAt: Long = System.currentTimeMillis())
 
+    @Query("UPDATE transactions SET categoryId = :newCategoryId WHERE categoryId = :oldCategoryId")
+    suspend fun reassignCategory(oldCategoryId: Long, newCategoryId: Long)
+
     @Query("DELETE FROM transactions")
     suspend fun deleteAll()
 }

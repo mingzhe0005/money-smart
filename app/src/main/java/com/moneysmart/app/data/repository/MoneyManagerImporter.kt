@@ -3,6 +3,7 @@ package com.moneysmart.app.data.repository
 import android.content.Context
 import android.net.Uri
 import androidx.room.withTransaction
+import com.moneysmart.app.data.local.CategoryOrganizer
 import com.moneysmart.app.data.local.MoneySmartDatabase
 import com.moneysmart.app.data.local.SettingsDataStore
 import com.moneysmart.app.data.local.entity.AccountEntity
@@ -124,11 +125,13 @@ class MoneyManagerImporter(
                 subcategoryName: String,
                 type: CategoryType
             ): Long? {
-                val parentClean = categoryName.trim()
-                if (parentClean.isBlank()) return null
+                if (categoryName.isBlank()) return null
+                val parentClean = CategoryOrganizer.canonicalName(categoryName, type)
 
                 var parent = allCategories.firstOrNull {
-                    it.parentId == null && it.type == type && it.name.trim().equals(parentClean, ignoreCase = true)
+                    it.parentId == null &&
+                        it.type == type &&
+                        CategoryOrganizer.canonicalName(it.name, type).equals(parentClean, ignoreCase = true)
                 }
                 if (parent == null) {
                     val palette = listOf(
@@ -136,7 +139,8 @@ class MoneyManagerImporter(
                         0xFF8B5CF6L, 0xFFEC4899L, 0xFF14B8A6L, 0xFF6366F1L,
                         0xFFF97316L, 0xFF06B6D4L, 0xFFF43F5EL, 0xFF84CC16L
                     )
-                    val colorHex = if (type == CategoryType.INCOME) {
+                    val spec = CategoryOrganizer.canonicalSpec(parentClean, type)
+                    val colorHex = spec?.colorHex ?: if (type == CategoryType.INCOME) {
                         0xFF059669L
                     } else {
                         palette[allCategories.size % palette.size]
@@ -145,7 +149,7 @@ class MoneyManagerImporter(
                         name = parentClean,
                         type = type,
                         parentId = null,
-                        iconName = if (type == CategoryType.INCOME) "Payments" else "Category",
+                        iconName = spec?.iconName ?: if (type == CategoryType.INCOME) "Payments" else "Category",
                         colorHex = colorHex,
                         sortOrder = allCategories.size + 1
                     )
@@ -155,11 +159,13 @@ class MoneyManagerImporter(
                     createdCategories++
                 }
 
-                val subClean = subcategoryName.trim()
-                if (subClean.isBlank()) return parent.id
+                if (subcategoryName.isBlank()) return parent.id
+                val subClean = CategoryOrganizer.cleanSubcategoryName(subcategoryName)
 
                 var child = allCategories.firstOrNull {
-                    it.parentId == parent.id && it.type == type && it.name.trim().equals(subClean, ignoreCase = true)
+                    it.parentId == parent.id &&
+                        it.type == type &&
+                        CategoryOrganizer.cleanSubcategoryName(it.name).equals(subClean, ignoreCase = true)
                 }
                 if (child == null) {
                     val newChild = CategoryEntity(

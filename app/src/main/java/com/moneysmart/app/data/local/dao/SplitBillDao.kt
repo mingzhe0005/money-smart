@@ -17,8 +17,14 @@ interface SplitBillDao {
     @Query("SELECT * FROM split_participants ORDER BY id ASC")
     fun observeAllParticipants(): Flow<List<SplitParticipantEntity>>
 
+    @Query("SELECT * FROM split_bills ORDER BY id ASC")
+    suspend fun getAllBills(): List<SplitBillEntity>
+
     @Query("SELECT * FROM split_bills WHERE id = :id LIMIT 1")
     suspend fun getBillById(id: Long): SplitBillEntity?
+
+    @Query("UPDATE split_bills SET categoryId = :newCategoryId WHERE categoryId = :oldCategoryId")
+    suspend fun reassignCategory(oldCategoryId: Long, newCategoryId: Long)
 
     @Query("SELECT * FROM split_participants WHERE splitBillId = :billId ORDER BY id ASC")
     suspend fun getParticipantsForBill(billId: Long): List<SplitParticipantEntity>

@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -25,6 +27,7 @@ import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.Payments
@@ -39,6 +42,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
@@ -240,6 +244,7 @@ fun AddEditTransactionScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
+            .imePadding()
     ) {
         WarmCurvedHeroHeader(
             title = if (loadedTx == null) "New Transaction" else "Edit Transaction",
@@ -290,7 +295,8 @@ fun AddEditTransactionScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
+                    .padding(16.dp)
+                    .navigationBarsPadding(),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 if (loadedTx?.source == TransactionSource.AI_NOTIFICATION) {
@@ -360,6 +366,11 @@ fun AddEditTransactionScreen(
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                     singleLine = true,
                                     shape = RoundedCornerShape(14.dp),
+                                    trailingIcon = clearFieldIcon(
+                                        visible = amountText.isNotEmpty(),
+                                        contentDescription = "Clear amount",
+                                        onClear = { amountText = "" }
+                                    ),
                                     modifier = Modifier.weight(1.7f)
                                 )
                                 CurrencyDropdown(
@@ -391,6 +402,11 @@ fun AddEditTransactionScreen(
                                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                         singleLine = true,
                                         shape = RoundedCornerShape(14.dp),
+                                        trailingIcon = clearFieldIcon(
+                                            visible = exchangeRateText.isNotEmpty(),
+                                            contentDescription = "Clear exchange rate",
+                                            onClear = { exchangeRateText = "" }
+                                        ),
                                         modifier = Modifier.weight(1f)
                                     )
                                     Text(
@@ -452,6 +468,11 @@ fun AddEditTransactionScreen(
                                 },
                                 singleLine = true,
                                 shape = RoundedCornerShape(14.dp),
+                                trailingIcon = clearFieldIcon(
+                                    visible = merchant.isNotEmpty(),
+                                    contentDescription = "Clear merchant",
+                                    onClear = { merchant = "" }
+                                ),
                                 modifier = Modifier.fillMaxWidth()
                             )
 
@@ -461,6 +482,11 @@ fun AddEditTransactionScreen(
                                 label = { Text("Note") },
                                 maxLines = 3,
                                 shape = RoundedCornerShape(14.dp),
+                                trailingIcon = clearFieldIcon(
+                                    visible = note.isNotEmpty(),
+                                    contentDescription = "Clear note",
+                                    onClear = { note = "" }
+                                ),
                                 modifier = Modifier.fillMaxWidth()
                             )
 
@@ -858,6 +884,25 @@ fun SimpleDropdownField(
                     }
                 )
             }
+        }
+    }
+}
+
+private fun clearFieldIcon(
+    visible: Boolean,
+    contentDescription: String,
+    onClear: () -> Unit
+): (@Composable () -> Unit)? = if (!visible) {
+    null
+} else {
+    {
+        IconButton(onClick = onClear) {
+            Icon(
+                imageVector = Icons.Rounded.Close,
+                contentDescription = contentDescription,
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
