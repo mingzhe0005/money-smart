@@ -1,6 +1,6 @@
 package com.moneysmart.app.ui.screens
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -15,8 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import com.moneysmart.app.ui.components.ResponsiveContentBox
-import com.moneysmart.app.ui.components.rememberIsWideScreen
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.AutoAwesome
@@ -27,28 +25,36 @@ import androidx.compose.material.icons.rounded.EventRepeat
 import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.Savings
 import androidx.compose.material.icons.rounded.Settings
-import androidx.compose.material3.Card
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.moneysmart.app.ui.components.ResponsiveContentBox
+import com.moneysmart.app.ui.components.SoftElevatedCard
+import com.moneysmart.app.ui.components.SquircleIconBadge
+import com.moneysmart.app.ui.components.WarmCurvedHeroHeader
+import com.moneysmart.app.ui.components.rememberIsWideScreen
+import com.moneysmart.app.ui.theme.ApricotHero
+import com.moneysmart.app.ui.theme.CoralAccent
+import com.moneysmart.app.ui.theme.EspressoInk
+import com.moneysmart.app.ui.theme.IncomeGreen
+import com.moneysmart.app.ui.theme.PeachSoft
+import com.moneysmart.app.ui.theme.TransferBlue
 
 private data class MoreMenuItem(
     val title: String,
     val subtitle: String,
     val icon: ImageVector,
+    val accent: Color,
     val onClick: () -> Unit
 )
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MoreScreen(
     onOpenBillSplitter: () -> Unit,
@@ -65,48 +71,56 @@ fun MoreScreen(
             title = "Bill Splitter & Reimbursements",
             subtitle = "Split group bills and track friend repayments into any account",
             icon = Icons.Rounded.Groups,
+            accent = CoralAccent,
             onClick = onOpenBillSplitter
         ),
         MoreMenuItem(
             title = "AI Activity & Test Simulator",
             subtitle = "Notification access status, captured alerts log & live AI parser tester",
             icon = Icons.Rounded.AutoAwesome,
+            accent = EspressoInk,
             onClick = onOpenAiActivity
         ),
         MoreMenuItem(
             title = "Monitored Payment Apps",
             subtitle = "Choose which banking, card & e-wallet apps Money Smart reads",
             icon = Icons.Rounded.Apps,
+            accent = ApricotHero,
             onClick = onOpenAppAllowlist
         ),
         MoreMenuItem(
             title = "Monthly Budgets",
             subtitle = "Set spending limits per category with 80% & 100% alerts",
             icon = Icons.Rounded.Savings,
+            accent = IncomeGreen,
             onClick = onOpenBudgets
         ),
         MoreMenuItem(
             title = "Recurring & Subscriptions",
             subtitle = "Automate rent, salary & subscriptions",
             icon = Icons.Rounded.EventRepeat,
+            accent = TransferBlue,
             onClick = onOpenRecurring
         ),
         MoreMenuItem(
             title = "Categories & Subcategories",
             subtitle = "Customize expense & income categories for AI auto-tagging",
             icon = Icons.Rounded.Category,
+            accent = CoralAccent,
             onClick = onOpenCategories
         ),
         MoreMenuItem(
-            title = "Backup & Restore (Google Drive / Local)",
+            title = "Backup & Restore (Drive / Local)",
             subtitle = "100% free JSON auto-backup, restore & CSV export",
             icon = Icons.Rounded.Backup,
+            accent = IncomeGreen,
             onClick = onOpenBackup
         ),
         MoreMenuItem(
             title = "Settings & Security",
             subtitle = "Gemini free-tier API key, Base Currency, Theme & Biometric/PIN lock",
             icon = Icons.Rounded.Settings,
+            accent = EspressoInk,
             onClick = onOpenSettings
         )
     )
@@ -114,15 +128,22 @@ fun MoreScreen(
     val isWide = rememberIsWideScreen()
     val rows = if (isWide) menuItems.chunked(2) else menuItems.chunked(1)
 
-    Scaffold(
-        topBar = {
-            TopAppBar(title = { Text("More & Tools", fontWeight = FontWeight.Bold) })
-        }
-    ) { innerPadding ->
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        WarmCurvedHeroHeader(
+            title = "More & Tools",
+            subtitle = "Bill splitting, AI automation, budgets, backups & security",
+            heroColor = PeachSoft,
+            maxWidth = if (isWide) 1040.dp else 900.dp
+        )
+
         ResponsiveContentBox(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
+                .fillMaxWidth()
+                .weight(1f),
             maxWidth = if (isWide) 1040.dp else 900.dp
         ) {
             LazyColumn(
@@ -138,11 +159,12 @@ fun MoreScreen(
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         rowItems.forEach { item ->
-                            Card(
+                            SoftElevatedCard(
+                                onClick = item.onClick,
                                 modifier = Modifier
                                     .weight(1f)
-                                    .fillMaxHeight()
-                                    .clickable(onClick = item.onClick)
+                                    .fillMaxHeight(),
+                                cornerRadius = 20.dp
                             ) {
                                 Row(
                                     modifier = Modifier
@@ -150,21 +172,22 @@ fun MoreScreen(
                                         .padding(16.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(
-                                        imageVector = item.icon,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary
+                                    SquircleIconBadge(
+                                        icon = item.icon,
+                                        tint = item.accent,
+                                        containerColor = item.accent.copy(alpha = 0.13f),
+                                        size = 46.dp
                                     )
                                     Spacer(modifier = Modifier.width(14.dp))
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
                                             text = item.title,
                                             style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.Medium
+                                            fontWeight = FontWeight.Bold
                                         )
                                         Text(
                                             text = item.subtitle,
-                                            style = MaterialTheme.typography.bodyMedium,
+                                            style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }

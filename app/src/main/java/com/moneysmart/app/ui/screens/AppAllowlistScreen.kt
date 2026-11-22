@@ -2,6 +2,7 @@ package com.moneysmart.app.ui.screens
 
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,20 +16,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -41,6 +35,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.moneysmart.app.ui.components.ResponsiveContentBox
+import com.moneysmart.app.ui.components.SoftElevatedCard
+import com.moneysmart.app.ui.components.WarmCurvedHeroHeader
+import com.moneysmart.app.ui.theme.PeachSoft
 import com.moneysmart.app.ui.viewmodel.MoneySmartViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -51,7 +49,6 @@ private data class InstalledAppEntry(
     val isSystemApp: Boolean
 )
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppAllowlistScreen(
     viewModel: MoneySmartViewModel,
@@ -106,94 +103,97 @@ fun AppAllowlistScreen(
         )
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text("Monitored Payment Apps", fontWeight = FontWeight.Bold)
-                        Text(
-                            text = "${settings.allowedPackages.size} selected",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
-                    }
-                }
-            )
-        }
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
-            Text(
-                text = "Only notifications from the apps you check below are sent to Gemini AI for expense extraction.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
-            )
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
-                placeholder = { Text("Search banking, card, e-wallet, or SMS app...") },
-                singleLine = true,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp)
-            )
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("Show all system apps", style = MaterialTheme.typography.bodyMedium)
-                Switch(checked = showSystemApps, onCheckedChange = { showSystemApps = it })
-            }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        WarmCurvedHeroHeader(
+            title = "Monitored Payment Apps",
+            subtitle = "${settings.allowedPackages.size} selected · Private allowlist",
+            heroColor = PeachSoft,
+            maxWidth = 900.dp,
+            onNavigateBack = onNavigateBack
+        )
 
-            if (isLoading) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
+        ResponsiveContentBox(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+            maxWidth = 900.dp
+        ) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                Text(
+                    text = "Only notifications from the apps you check below are sent to Gemini AI for expense extraction.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                )
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    placeholder = { Text("Search banking, card, e-wallet, or SMS app...") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Show all system apps", style = MaterialTheme.typography.bodyMedium)
+                    Switch(checked = showSystemApps, onCheckedChange = { showSystemApps = it })
                 }
-            } else {
-                LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
-                    items(filteredApps, key = { it.packageName }) { app ->
-                        val isChecked = app.packageName in settings.allowedPackages
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { viewModel.toggleAllowedPackage(app.packageName, !isChecked) }
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Checkbox(
-                                checked = isChecked,
-                                onCheckedChange = { checked ->
-                                    viewModel.toggleAllowedPackage(app.packageName, checked)
+
+                if (isLoading) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
+                } else {
+                    LazyColumn(
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        items(filteredApps, key = { it.packageName }) { app ->
+                            val isChecked = app.packageName in settings.allowedPackages
+                            SoftElevatedCard(
+                                onClick = { viewModel.toggleAllowedPackage(app.packageName, !isChecked) },
+                                modifier = Modifier.fillMaxWidth(),
+                                cornerRadius = 16.dp
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Checkbox(
+                                        checked = isChecked,
+                                        onCheckedChange = { checked ->
+                                            viewModel.toggleAllowedPackage(app.packageName, checked)
+                                        }
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = app.label,
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            fontWeight = if (isChecked) FontWeight.Bold else FontWeight.Medium
+                                        )
+                                        Text(
+                                            text = app.packageName,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
                                 }
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = app.label,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    fontWeight = if (isChecked) FontWeight.SemiBold else FontWeight.Normal
-                                )
-                                Text(
-                                    text = app.packageName,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
                             }
                         }
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
                     }
                 }
             }

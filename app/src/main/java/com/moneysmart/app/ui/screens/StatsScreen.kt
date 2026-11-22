@@ -2,7 +2,7 @@ package com.moneysmart.app.ui.screens
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,22 +26,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ChevronLeft
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -53,7 +45,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
@@ -62,7 +53,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.moneysmart.app.data.local.entity.AccountEntity
 import com.moneysmart.app.data.local.entity.CategoryEntity
 import com.moneysmart.app.data.local.entity.TransactionEntity
 import com.moneysmart.app.data.local.entity.TransactionType
@@ -71,10 +61,21 @@ import com.moneysmart.app.ui.components.EmptyStateCard
 import com.moneysmart.app.ui.components.IconCatalog
 import com.moneysmart.app.ui.components.MonthSelectorBar
 import com.moneysmart.app.ui.components.ResponsiveContentBox
+import com.moneysmart.app.ui.components.SoftElevatedCard
+import com.moneysmart.app.ui.components.SquircleIconBadge
 import com.moneysmart.app.ui.components.TransactionRow
+import com.moneysmart.app.ui.components.WarmCurvedHeroHeader
+import com.moneysmart.app.ui.components.WarmSegmentedPillBar
 import com.moneysmart.app.ui.components.rememberIsWideScreen
+import com.moneysmart.app.ui.theme.ApricotHero
+import com.moneysmart.app.ui.theme.CoralAccent
+import com.moneysmart.app.ui.theme.EspressoInk
 import com.moneysmart.app.ui.theme.ExpenseRed
+import com.moneysmart.app.ui.theme.HoneyGold
 import com.moneysmart.app.ui.theme.IncomeGreen
+import com.moneysmart.app.ui.theme.PeachSoft
+import com.moneysmart.app.ui.theme.TrackBeige
+import com.moneysmart.app.ui.theme.TransferBlue
 import com.moneysmart.app.ui.viewmodel.MoneySmartViewModel
 import com.moneysmart.app.util.FormatUtils
 import java.time.Instant
@@ -109,24 +110,22 @@ private data class DualBarEntry(
     val expense: Double
 )
 
+// Warm Bauhaus Editorial Palette inspired by coral, espresso, apricot, honey, and sage
 private val statsChartPalette = listOf(
-    Color(0xFFEF4444), // Red
-    Color(0xFFF59E0B), // Amber
-    Color(0xFF10B981), // Emerald
-    Color(0xFF0EA5E9), // Sky Blue
-    Color(0xFF8B5CF6), // Violet
-    Color(0xFFEC4899), // Pink
-    Color(0xFF14B8A6), // Teal
-    Color(0xFF6366F1), // Indigo
-    Color(0xFFF97316), // Orange
-    Color(0xFF06B6D4), // Cyan
-    Color(0xFFF43F5E), // Rose
-    Color(0xFF84CC16), // Lime
-    Color(0xFFA855F7), // Purple
-    Color(0xFF64748B)  // Slate
+    CoralAccent,           // Warm Coral
+    EspressoInk,           // Deep Espresso
+    ApricotHero,           // Soft Apricot
+    IncomeGreen,           // Warm Sage
+    HoneyGold,             // Honey Gold
+    Color(0xFF7B61A6),     // Muted Plum
+    TransferBlue,          // Editorial Slate Blue
+    Color(0xFFE07A5F),     // Terracotta
+    Color(0xFF3D9970),     // Pine Sage
+    Color(0xFFD95F76),     // Rose Berry
+    Color(0xFFC47F35),     // Ochre
+    Color(0xFF5C7AEA)      // Periwinkle
 )
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StatsScreen(
     viewModel: MoneySmartViewModel,
@@ -196,7 +195,7 @@ fun StatsScreen(
 
         return sorted.mapIndexed { index, (cat, list, sum) ->
             val color = if (txType == TransactionType.INCOME) {
-                statsChartPalette[(index + 2) % statsChartPalette.size]
+                statsChartPalette[(index + 3) % statsChartPalette.size]
             } else {
                 statsChartPalette[index % statsChartPalette.size]
             }
@@ -236,7 +235,7 @@ fun StatsScreen(
                         key = "both_exp",
                         name = "Expense",
                         iconName = "ShoppingBag",
-                        color = ExpenseRed,
+                        color = CoralAccent,
                         amount = totalExpense,
                         percent = (totalExpense / sumBoth).toFloat(),
                         transactions = periodTxsAll.filter { LedgerCalculations.effectiveExpenseBaseAmount(it) > 0.0 }
@@ -277,7 +276,7 @@ fun StatsScreen(
 
     @Composable
     fun DonutOverviewCard(modifier: Modifier = Modifier) {
-        Card(modifier = modifier) {
+        SoftElevatedCard(modifier = modifier, cornerRadius = 22.dp) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -286,14 +285,17 @@ fun StatsScreen(
                 verticalArrangement = Arrangement.Center
             ) {
                 Box(
-                    modifier = Modifier.size(185.dp),
+                    modifier = Modifier.size(196.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     DonutChart(
                         slices = donutSlices,
                         modifier = Modifier.fillMaxSize()
                     )
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(horizontal = 24.dp)
+                    ) {
                         val centerLabel = when (typeFilter) {
                             StatsTypeFilter.EXPENSE -> "Total Expense"
                             StatsTypeFilter.INCOME -> "Total Income"
@@ -306,13 +308,14 @@ fun StatsScreen(
                         }
                         Text(
                             text = centerLabel,
-                            style = MaterialTheme.typography.labelMedium,
+                            style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
                             text = FormatUtils.formatMoney(centerVal, settings.baseCurrency),
                             style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.ExtraBold,
+                            maxLines = 1
                         )
                     }
                 }
@@ -324,7 +327,7 @@ fun StatsScreen(
                         horizontalArrangement = Arrangement.SpaceEvenly
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("Income", style = MaterialTheme.typography.labelMedium)
+                            Text("Income", style = MaterialTheme.typography.labelSmall)
                             Text(
                                 text = FormatUtils.formatMoney(totalIncome, settings.baseCurrency),
                                 style = MaterialTheme.typography.titleMedium,
@@ -333,11 +336,11 @@ fun StatsScreen(
                             )
                         }
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("Expense", style = MaterialTheme.typography.labelMedium)
+                            Text("Expense", style = MaterialTheme.typography.labelSmall)
                             Text(
                                 text = FormatUtils.formatMoney(totalExpense, settings.baseCurrency),
                                 style = MaterialTheme.typography.titleMedium,
-                                color = ExpenseRed,
+                                color = CoralAccent,
                                 fontWeight = FontWeight.Bold
                             )
                         }
@@ -349,7 +352,7 @@ fun StatsScreen(
 
     @Composable
     fun TrendOverviewCard(modifier: Modifier = Modifier) {
-        Card(modifier = modifier) {
+        SoftElevatedCard(modifier = modifier, cornerRadius = 22.dp) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -361,19 +364,19 @@ fun StatsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = if (period == StatsPeriod.YEAR) "Monthly Trend" else "Weekly Trend",
+                        text = if (period == StatsPeriod.YEAR) "Monthly Activity" else "Weekly Activity",
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.Bold
                     )
                     if (typeFilter == StatsTypeFilter.BOTH) {
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             LegendDot("Income", IncomeGreen)
-                            LegendDot("Expense", ExpenseRed)
+                            LegendDot("Expense", CoralAccent)
                         }
                     }
                 }
-                Spacer(modifier = Modifier.height(10.dp))
-                TrendBarChart(
+                Spacer(modifier = Modifier.height(8.dp))
+                CapsuleTrendBarChart(
                     bars = dualBars,
                     filter = typeFilter,
                     baseCurrency = settings.baseCurrency,
@@ -385,15 +388,22 @@ fun StatsScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(title = { Text("Spending Analytics", fontWeight = FontWeight.Bold) })
-        }
-    ) { innerPadding ->
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        WarmCurvedHeroHeader(
+            title = "Spending Analytics",
+            subtitle = "Cash flow trends & category breakdown",
+            heroColor = PeachSoft,
+            maxWidth = if (isWide) 1040.dp else 920.dp
+        )
+
         ResponsiveContentBox(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
+                .fillMaxWidth()
+                .weight(1f),
             maxWidth = if (isWide) 1040.dp else 920.dp
         ) {
             LazyColumn(
@@ -409,9 +419,12 @@ fun StatsScreen(
                         )
                     } else {
                         Surface(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 4.dp),
+                            shape = RoundedCornerShape(16.dp),
                             color = MaterialTheme.colorScheme.surface,
-                            tonalElevation = 1.dp
+                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                         ) {
                             Row(
                                 modifier = Modifier
@@ -420,15 +433,21 @@ fun StatsScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                IconButton(onClick = { viewModel.setMonth(selectedMonth.minusYears(1)) }) {
+                                IconButton(
+                                    onClick = { viewModel.setMonth(selectedMonth.minusYears(1)) },
+                                    modifier = Modifier.size(36.dp)
+                                ) {
                                     Icon(Icons.Rounded.ChevronLeft, contentDescription = "Previous year")
                                 }
                                 Text(
                                     text = selectedMonth.year.toString(),
                                     style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.SemiBold
+                                    fontWeight = FontWeight.Bold
                                 )
-                                IconButton(onClick = { viewModel.setMonth(selectedMonth.plusYears(1)) }) {
+                                IconButton(
+                                    onClick = { viewModel.setMonth(selectedMonth.plusYears(1)) },
+                                    modifier = Modifier.size(36.dp)
+                                ) {
                                     Icon(Icons.Rounded.ChevronRight, contentDescription = "Next year")
                                 }
                             }
@@ -439,60 +458,38 @@ fun StatsScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 10.dp),
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            SingleChoiceSegmentedButtonRow(modifier = Modifier.weight(0.85f)) {
-                                StatsPeriod.entries.forEachIndexed { idx, p ->
-                                    SegmentedButton(
-                                        selected = period == p,
-                                        onClick = { period = p },
-                                        shape = SegmentedButtonDefaults.itemShape(idx, StatsPeriod.entries.size)
-                                    ) {
-                                        Text(p.label, fontSize = 13.sp)
-                                    }
-                                }
-                            }
-                            SingleChoiceSegmentedButtonRow(modifier = Modifier.weight(1.15f)) {
-                                StatsTypeFilter.entries.forEachIndexed { idx, tf ->
-                                    SegmentedButton(
-                                        selected = typeFilter == tf,
-                                        onClick = { typeFilter = tf },
-                                        shape = SegmentedButtonDefaults.itemShape(idx, StatsTypeFilter.entries.size)
-                                    ) {
-                                        Text(tf.label, fontSize = 13.sp)
-                                    }
-                                }
-                            }
+                            WarmSegmentedPillBar(
+                                options = StatsPeriod.entries.map { it.label },
+                                selectedIndex = period.ordinal,
+                                onSelect = { period = StatsPeriod.entries[it] },
+                                modifier = Modifier.weight(0.8f)
+                            )
+                            WarmSegmentedPillBar(
+                                options = StatsTypeFilter.entries.map { it.label },
+                                selectedIndex = typeFilter.ordinal,
+                                onSelect = { typeFilter = StatsTypeFilter.entries[it] },
+                                modifier = Modifier.weight(1.2f)
+                            )
                         }
                     } else {
                         Column(
-                            modifier = Modifier.padding(16.dp),
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                                StatsPeriod.entries.forEachIndexed { idx, p ->
-                                    SegmentedButton(
-                                        selected = period == p,
-                                        onClick = { period = p },
-                                        shape = SegmentedButtonDefaults.itemShape(idx, StatsPeriod.entries.size)
-                                    ) {
-                                        Text(p.label, fontSize = 13.sp)
-                                    }
-                                }
-                            }
-                            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                                StatsTypeFilter.entries.forEachIndexed { idx, tf ->
-                                    SegmentedButton(
-                                        selected = typeFilter == tf,
-                                        onClick = { typeFilter = tf },
-                                        shape = SegmentedButtonDefaults.itemShape(idx, StatsTypeFilter.entries.size)
-                                    ) {
-                                        Text(tf.label, fontSize = 13.sp)
-                                    }
-                                }
-                            }
+                            WarmSegmentedPillBar(
+                                options = StatsPeriod.entries.map { it.label },
+                                selectedIndex = period.ordinal,
+                                onSelect = { period = StatsPeriod.entries[it] }
+                            )
+                            WarmSegmentedPillBar(
+                                options = StatsTypeFilter.entries.map { it.label },
+                                selectedIndex = typeFilter.ordinal,
+                                onSelect = { typeFilter = StatsTypeFilter.entries[it] }
+                            )
                         }
                     }
                 }
@@ -516,12 +513,12 @@ fun StatsScreen(
                             ) {
                                 DonutOverviewCard(
                                     modifier = Modifier
-                                        .weight(0.45f)
+                                        .weight(0.44f)
                                         .fillMaxHeight()
                                 )
                                 TrendOverviewCard(
                                     modifier = Modifier
-                                        .weight(0.55f)
+                                        .weight(0.56f)
                                         .fillMaxHeight()
                                 )
                             }
@@ -550,10 +547,10 @@ fun StatsScreen(
                         if (expenseSlices.isNotEmpty()) {
                             item {
                                 Text(
-                                    text = if (typeFilter == StatsTypeFilter.BOTH) "Expenses by Category (Tap to view)" else "Categories (Tap to view)",
+                                    text = if (typeFilter == StatsTypeFilter.BOTH) "Expenses by Category (Tap to inspect)" else "Categories (Tap to inspect)",
                                     style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.SemiBold,
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 6.dp)
                                 )
                             }
                         }
@@ -570,10 +567,10 @@ fun StatsScreen(
                         if (incomeSlices.isNotEmpty()) {
                             item {
                                 Text(
-                                    text = if (typeFilter == StatsTypeFilter.BOTH) "Income by Category (Tap to view)" else "Categories (Tap to view)",
+                                    text = if (typeFilter == StatsTypeFilter.BOTH) "Income by Category (Tap to inspect)" else "Categories (Tap to inspect)",
                                     style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.SemiBold,
-                                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 4.dp)
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(start = 18.dp, end = 18.dp, top = 12.dp, bottom = 6.dp)
                                 )
                             }
                         }
@@ -601,7 +598,7 @@ fun StatsScreen(
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 56.dp, max = 320.dp)
+                        .heightIn(min = 56.dp, max = 340.dp)
                 ) {
                     items(selectedSlice.transactions, key = { it.id }) { tx ->
                         TransactionRow(
@@ -615,7 +612,6 @@ fun StatsScreen(
                                 onTransactionClick(tx.id)
                             }
                         )
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
                     }
                 }
             },
@@ -646,11 +642,12 @@ private fun CategorySliceCard(
     baseCurrency: String,
     onClick: () -> Unit
 ) {
-    Card(
+    SoftElevatedCard(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp)
-            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        onClick = onClick,
+        cornerRadius = 18.dp
     ) {
         Row(
             modifier = Modifier
@@ -658,20 +655,12 @@ private fun CategorySliceCard(
                 .padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(slice.color.copy(alpha = 0.16f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = IconCatalog.resolve(slice.iconName),
-                    contentDescription = null,
-                    tint = slice.color,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
+            SquircleIconBadge(
+                icon = IconCatalog.resolve(slice.iconName),
+                tint = slice.color,
+                containerColor = slice.color.copy(alpha = 0.14f),
+                size = 42.dp
+            )
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Row(
@@ -681,8 +670,8 @@ private fun CategorySliceCard(
                 ) {
                     Text(
                         text = slice.name,
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.Medium,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false)
@@ -690,19 +679,19 @@ private fun CategorySliceCard(
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "${FormatUtils.formatMoney(slice.amount, baseCurrency)} (${(slice.percent * 100f).roundToInt()}%)",
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.SemiBold
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
                     )
                 }
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(7.dp))
                 LinearProgressIndicator(
                     progress = { slice.percent.coerceIn(0f, 1f) },
                     color = slice.color,
-                    trackColor = slice.color.copy(alpha = 0.16f),
+                    trackColor = TrackBeige,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(6.dp)
-                        .clip(RoundedCornerShape(3.dp))
+                        .height(7.dp)
+                        .clip(RoundedCornerShape(4.dp))
                 )
             }
         }
@@ -714,8 +703,8 @@ private fun DonutChart(
     slices: List<CategorySlice>,
     modifier: Modifier = Modifier
 ) {
-    Canvas(modifier = modifier.padding(12.dp)) {
-        val strokeWidth = 34.dp.toPx()
+    Canvas(modifier = modifier.padding(8.dp)) {
+        val strokeWidth = 24.dp.toPx()
         val diameter = minOf(size.width, size.height) - strokeWidth
         val topLeft = Offset(
             x = (size.width - diameter) / 2f,
@@ -728,7 +717,7 @@ private fun DonutChart(
             drawArc(
                 color = slice.color,
                 startAngle = startAngle,
-                sweepAngle = if (slices.size > 1) (sweep - 1.5f).coerceAtLeast(0.5f) else sweep,
+                sweepAngle = if (slices.size > 1) (sweep - 2.2f).coerceAtLeast(0.5f) else sweep,
                 useCenter = false,
                 topLeft = topLeft,
                 size = arcSize,
@@ -739,141 +728,157 @@ private fun DonutChart(
     }
 }
 
+/**
+ * Tall rounded capsule tracks with floating multi-tone fill pills directly inspired by Screen 3.
+ */
 @Composable
-private fun TrendBarChart(
+private fun CapsuleTrendBarChart(
     bars: List<DualBarEntry>,
     filter: StatsTypeFilter,
     baseCurrency: String,
     modifier: Modifier = Modifier
 ) {
+    val isDark = isSystemInDarkTheme()
     val maxVal = when (filter) {
         StatsTypeFilter.EXPENSE -> bars.maxOfOrNull { it.expense } ?: 0.0
         StatsTypeFilter.INCOME -> bars.maxOfOrNull { it.income } ?: 0.0
         StatsTypeFilter.BOTH -> bars.maxOfOrNull { maxOf(it.income, it.expense) } ?: 0.0
     }.coerceAtLeast(1.0)
-    val guideColor = MaterialTheme.colorScheme.outlineVariant
+    val trackColor = if (isDark) MaterialTheme.colorScheme.surfaceContainerHigh else TrackBeige
+    val singleBarColors = listOf(CoralAccent, EspressoInk, ApricotHero, CoralAccent)
 
     Column(modifier = modifier) {
         Text(
             text = "Peak: ${FormatUtils.formatMoney(maxVal, baseCurrency)}",
-            style = MaterialTheme.typography.labelMedium,
+            style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 4.dp)
+            modifier = Modifier.padding(bottom = 8.dp)
         )
-        Box(
+        Row(
             modifier = Modifier
                 .weight(1f)
-                .fillMaxWidth()
+                .fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.Bottom
         ) {
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val dash = PathEffect.dashPathEffect(floatArrayOf(8f, 8f), 0f)
-                val topY = 18.dp.toPx()
-                val bottomY = (size.height - 24.dp.toPx()).coerceAtLeast(topY + 10f)
-                val midY = (topY + bottomY) / 2f
-                drawLine(guideColor, Offset(0f, topY), Offset(size.width, topY), strokeWidth = 1.dp.toPx(), pathEffect = dash)
-                drawLine(guideColor, Offset(0f, midY), Offset(size.width, midY), strokeWidth = 1.dp.toPx(), pathEffect = dash)
-                drawLine(guideColor, Offset(0f, bottomY), Offset(size.width, bottomY), strokeWidth = 1.dp.toPx())
-            }
-
-            Row(
-                modifier = Modifier.fillMaxSize(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.Bottom
-            ) {
-                bars.forEach { entry ->
-                    Column(
+            bars.forEachIndexed { idx, entry ->
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Bottom
+                ) {
+                    Box(
                         modifier = Modifier
                             .weight(1f)
-                            .fillMaxHeight(),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Bottom
+                            .fillMaxWidth(),
+                        contentAlignment = Alignment.BottomCenter
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxWidth(),
-                            contentAlignment = Alignment.BottomCenter
-                        ) {
-                            if (filter == StatsTypeFilter.BOTH) {
-                                val incRatio = (entry.income / maxVal).toFloat().coerceIn(0f, 1f)
-                                val expRatio = (entry.expense / maxVal).toFloat().coerceIn(0f, 1f)
-                                val barW = if (bars.size > 6) 8.dp else 18.dp
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(3.dp),
-                                    verticalAlignment = Alignment.Bottom
-                                ) {
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        if (entry.income > 0 && bars.size <= 6) {
-                                            Text(
-                                                text = entry.income.roundToInt().toString(),
-                                                fontSize = 10.sp,
-                                                color = IncomeGreen,
-                                                fontWeight = FontWeight.SemiBold,
-                                                maxLines = 1
-                                            )
-                                        }
-                                        Box(
-                                            modifier = Modifier
-                                                .width(barW)
-                                                .height((90f * incRatio).coerceAtLeast(if (entry.income > 0) 6f else 2f).dp)
-                                                .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
-                                                .background(if (entry.income > 0) IncomeGreen else IncomeGreen.copy(alpha = 0.16f))
-                                        )
-                                    }
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        if (entry.expense > 0 && bars.size <= 6) {
-                                            Text(
-                                                text = entry.expense.roundToInt().toString(),
-                                                fontSize = 10.sp,
-                                                color = ExpenseRed,
-                                                fontWeight = FontWeight.SemiBold,
-                                                maxLines = 1
-                                            )
-                                        }
-                                        Box(
-                                            modifier = Modifier
-                                                .width(barW)
-                                                .height((90f * expRatio).coerceAtLeast(if (entry.expense > 0) 6f else 2f).dp)
-                                                .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
-                                                .background(if (entry.expense > 0) ExpenseRed else ExpenseRed.copy(alpha = 0.16f))
-                                        )
-                                    }
-                                }
-                            } else {
-                                val value = if (filter == StatsTypeFilter.INCOME) entry.income else entry.expense
-                                val color = if (filter == StatsTypeFilter.INCOME) IncomeGreen else ExpenseRed
-                                val ratio = (value / maxVal).toFloat().coerceIn(0f, 1f)
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    if (value > 0) {
-                                        Text(
-                                            text = value.roundToInt().toString(),
-                                            fontSize = 10.sp,
-                                            color = color,
-                                            fontWeight = FontWeight.SemiBold,
-                                            maxLines = 1
-                                        )
-                                    }
-                                    Box(
-                                        modifier = Modifier
-                                            .width(if (bars.size > 6) 16.dp else 32.dp)
-                                            .height((90f * ratio).coerceAtLeast(if (value > 0) 6f else 2f).dp)
-                                            .clip(RoundedCornerShape(topStart = 5.dp, topEnd = 5.dp))
-                                            .background(if (value > 0) color else color.copy(alpha = 0.16f))
-                                    )
-                                }
+                        if (filter == StatsTypeFilter.BOTH) {
+                            val incRatio = (entry.income / maxVal).toFloat().coerceIn(0f, 1f)
+                            val expRatio = (entry.expense / maxVal).toFloat().coerceIn(0f, 1f)
+                            val pillW = if (bars.size > 6) 7.dp else 12.dp
+                            Row(
+                                modifier = Modifier.fillMaxHeight(),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalAlignment = Alignment.Bottom
+                            ) {
+                                CapsuleBarColumn(
+                                    value = entry.income,
+                                    ratio = incRatio,
+                                    width = pillW,
+                                    fillColor = IncomeGreen,
+                                    trackColor = trackColor,
+                                    showValue = entry.income > 0 && bars.size <= 6
+                                )
+                                CapsuleBarColumn(
+                                    value = entry.expense,
+                                    ratio = expRatio,
+                                    width = pillW,
+                                    fillColor = CoralAccent,
+                                    trackColor = trackColor,
+                                    showValue = entry.expense > 0 && bars.size <= 6
+                                )
                             }
+                        } else {
+                            val value = if (filter == StatsTypeFilter.INCOME) entry.income else entry.expense
+                            val color = if (filter == StatsTypeFilter.INCOME) {
+                                IncomeGreen
+                            } else if (isDark && singleBarColors[idx % singleBarColors.size] == EspressoInk) {
+                                HoneyGold
+                            } else {
+                                singleBarColors[idx % singleBarColors.size]
+                            }
+                            val ratio = (value / maxVal).toFloat().coerceIn(0f, 1f)
+                            CapsuleBarColumn(
+                                value = value,
+                                ratio = ratio,
+                                width = if (bars.size > 6) 10.dp else 16.dp,
+                                fillColor = color,
+                                trackColor = trackColor,
+                                showValue = value > 0
+                            )
                         }
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = entry.label,
-                            fontSize = 11.5.sp,
-                            fontWeight = FontWeight.Medium,
-                            textAlign = TextAlign.Center,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1
-                        )
                     }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = entry.label,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1
+                    )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CapsuleBarColumn(
+    value: Double,
+    ratio: Float,
+    width: androidx.compose.ui.unit.Dp,
+    fillColor: Color,
+    trackColor: Color,
+    showValue: Boolean
+) {
+    Column(
+        modifier = Modifier.fillMaxHeight(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Bottom
+    ) {
+        if (showValue) {
+            Text(
+                text = value.roundToInt().toString(),
+                fontSize = 10.sp,
+                lineHeight = 12.sp,
+                color = fillColor,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1
+            )
+            Spacer(modifier = Modifier.height(3.dp))
+        } else {
+            Spacer(modifier = Modifier.height(15.dp))
+        }
+        Box(
+            modifier = Modifier
+                .width(width)
+                .weight(1f)
+                .clip(RoundedCornerShape(50))
+                .background(trackColor),
+            contentAlignment = Alignment.BottomCenter
+        ) {
+            if (value > 0.0) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .fillMaxHeight(fraction = ratio.coerceAtLeast(0.10f))
+                        .clip(RoundedCornerShape(50))
+                        .background(fillColor)
+                )
             }
         }
     }

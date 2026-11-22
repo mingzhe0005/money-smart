@@ -1,6 +1,9 @@
 package com.moneysmart.app.ui.screens
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -10,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -19,16 +23,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -37,14 +36,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -55,10 +49,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -68,11 +62,21 @@ import com.moneysmart.app.data.local.entity.CategoryType
 import com.moneysmart.app.data.local.entity.SplitParticipantEntity
 import com.moneysmart.app.data.repository.LedgerCalculations
 import com.moneysmart.app.data.repository.SplitBillWithParticipants
+import com.moneysmart.app.ui.components.BauhausCornerArt
 import com.moneysmart.app.ui.components.EmptyStateCard
+import com.moneysmart.app.ui.components.EspressoPillButton
 import com.moneysmart.app.ui.components.ResponsiveContentBox
+import com.moneysmart.app.ui.components.SoftElevatedCard
 import com.moneysmart.app.ui.components.TopBarAddButton
+import com.moneysmart.app.ui.components.WarmCurvedHeroHeader
+import com.moneysmart.app.ui.components.WarmSegmentedPillBar
 import com.moneysmart.app.ui.components.rememberIsWideScreen
+import com.moneysmart.app.ui.theme.ApricotHero
+import com.moneysmart.app.ui.theme.CoralAccent
+import com.moneysmart.app.ui.theme.EspressoInk
 import com.moneysmart.app.ui.theme.IncomeGreen
+import com.moneysmart.app.ui.theme.PeachSoft
+import com.moneysmart.app.ui.theme.TrackBeige
 import com.moneysmart.app.ui.theme.WarningAmber
 import com.moneysmart.app.ui.viewmodel.MoneySmartViewModel
 import com.moneysmart.app.util.FormatUtils
@@ -83,12 +87,12 @@ private enum class SplitFilter(val label: String) {
     ALL("All")
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BillSplitterScreen(
     viewModel: MoneySmartViewModel,
     onNavigateBack: () -> Unit
 ) {
+    val isDark = isSystemInDarkTheme()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val splitBills by viewModel.splitBills.collectAsStateWithLifecycle()
     val accounts by viewModel.activeAccounts.collectAsStateWithLifecycle()
@@ -116,79 +120,83 @@ fun BillSplitterScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Bill Splitter & Reimbursements", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                actions = {
-                    TopBarAddButton(
-                        label = "New Split",
-                        onClick = { showCreateDialog = true },
-                        modifier = Modifier.padding(end = 10.dp)
-                    )
-                }
-            )
-        }
-    ) { innerPadding ->
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        WarmCurvedHeroHeader(
+            title = "Bill Splitter & Reimbursements",
+            subtitle = "Track shared bills without distorting income stats",
+            heroColor = PeachSoft,
+            maxWidth = 920.dp,
+            onNavigateBack = onNavigateBack,
+            actions = {
+                TopBarAddButton(
+                    label = "New Split",
+                    onClick = { showCreateDialog = true }
+                )
+            }
+        )
+
         ResponsiveContentBox(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
+                .fillMaxWidth()
+                .weight(1f),
             maxWidth = 920.dp
         ) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 24.dp),
+                contentPadding = PaddingValues(16.dp, 6.dp, 16.dp, 24.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 item {
-                    Card(
+                    Surface(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                        )
+                        shape = RoundedCornerShape(24.dp),
+                        color = if (isDark) MaterialTheme.colorScheme.surfaceContainerHigh else EspressoInk
                     ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp)
-                        ) {
-                            Text(
-                                text = "Total Owed to You",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            BauhausCornerArt(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .size(width = 140.dp, height = 90.dp),
+                                darkAccent = ApricotHero.copy(alpha = 0.16f),
+                                coralAccent = CoralAccent.copy(alpha = 0.85f),
+                                apricotAccent = ApricotHero.copy(alpha = 0.7f)
                             )
-                            Text(
-                                text = FormatUtils.formatMoney(totalPendingOwed, settings.baseCurrency),
-                                style = MaterialTheme.typography.headlineMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "$pendingBillCount active split bill(s) · Repayments go directly to your chosen account without inflating income",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(18.dp)
+                            ) {
+                                Text(
+                                    text = "Total Owed to You",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = Color.White.copy(alpha = 0.74f)
+                                )
+                                Text(
+                                    text = FormatUtils.formatMoney(totalPendingOwed, settings.baseCurrency),
+                                    style = MaterialTheme.typography.displaySmall,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color.White
+                                )
+                                Text(
+                                    text = "$pendingBillCount active split bill(s) · Repayments reduce your net expense cleanly",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color.White.copy(alpha = 0.74f)
+                                )
+                            }
                         }
                     }
                 }
 
                 item {
-                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                        SplitFilter.entries.forEachIndexed { idx, f ->
-                            SegmentedButton(
-                                selected = filter == f,
-                                onClick = { filter = f },
-                                shape = SegmentedButtonDefaults.itemShape(idx, SplitFilter.entries.size)
-                            ) {
-                                Text(f.label, fontSize = 13.sp)
-                            }
-                        }
-                    }
+                    WarmSegmentedPillBar(
+                        options = SplitFilter.entries.map { it.label },
+                        selectedIndex = filter.ordinal,
+                        onSelect = { filter = SplitFilter.entries[it] }
+                    )
                 }
 
                 if (filteredBills.isEmpty()) {
@@ -209,9 +217,12 @@ fun BillSplitterScreen(
                             (item.totalRepaid / item.totalOwedByFriends).toFloat().coerceIn(0f, 1f)
                         } else 1f
 
-                        Card(modifier = Modifier.fillMaxWidth()) {
+                        SoftElevatedCard(
+                            modifier = Modifier.fillMaxWidth(),
+                            cornerRadius = 20.dp
+                        ) {
                             Column(
-                                modifier = Modifier.padding(14.dp),
+                                modifier = Modifier.padding(16.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 Row(
@@ -223,7 +234,7 @@ fun BillSplitterScreen(
                                         Text(
                                             text = bill.title,
                                             style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.SemiBold
+                                            fontWeight = FontWeight.Bold
                                         )
                                         Text(
                                             text = "${FormatUtils.formatDate(bill.timestamp)} · Paid via $paidAccountName · $catName",
@@ -233,7 +244,7 @@ fun BillSplitterScreen(
                                     }
                                     IconButton(onClick = { viewModel.deleteSplitBill(bill.id) }) {
                                         Icon(
-                                            Icons.Rounded.Delete,
+                                            Icons.Rounded.DeleteOutline,
                                             contentDescription = "Delete split record",
                                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -251,19 +262,19 @@ fun BillSplitterScreen(
                                     Text(
                                         text = "Your Share: ${FormatUtils.formatMoney(bill.myShareAmount, bill.currency)}",
                                         style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.primary
+                                        fontWeight = FontWeight.Bold,
+                                        color = CoralAccent
                                     )
                                 }
 
                                 LinearProgressIndicator(
                                     progress = { progress },
-                                    color = if (item.isFullySettled) IncomeGreen else WarningAmber,
-                                    trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                                    color = if (item.isFullySettled) IncomeGreen else CoralAccent,
+                                    trackColor = TrackBeige,
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .height(6.dp)
-                                        .clip(RoundedCornerShape(3.dp))
+                                        .height(7.dp)
+                                        .clip(RoundedCornerShape(4.dp))
                                 )
                                 Text(
                                     text = "Repaid: ${FormatUtils.formatMoney(item.totalRepaid, bill.currency)} / ${FormatUtils.formatMoney(item.totalOwedByFriends, bill.currency)}",
@@ -271,7 +282,7 @@ fun BillSplitterScreen(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
 
-                                HorizontalDivider()
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
                                 item.participants.forEach { p ->
                                     Row(
@@ -283,7 +294,7 @@ fun BillSplitterScreen(
                                             Text(
                                                 text = p.friendName,
                                                 style = MaterialTheme.typography.bodyLarge,
-                                                fontWeight = FontWeight.Medium
+                                                fontWeight = FontWeight.SemiBold
                                             )
                                             if (p.isSettled) {
                                                 val destName = p.repaidAccountId?.let { accountMap[it]?.name } ?: "Account"
@@ -314,7 +325,8 @@ fun BillSplitterScreen(
                                             }
                                         } else {
                                             OutlinedButton(
-                                                onClick = { settleTarget = item to p }
+                                                onClick = { settleTarget = item to p },
+                                                shape = RoundedCornerShape(12.dp)
                                             ) {
                                                 Text("Mark Paid")
                                             }
@@ -406,6 +418,7 @@ private fun SettleParticipantDialog(
                     label = { Text("Amount Repaid ($currency)") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     singleLine = true,
+                    shape = RoundedCornerShape(14.dp),
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -471,7 +484,6 @@ fun CreateSplitBillDialog(
 
     val friendsTotal = friendAmounts.sumOf { it.toDoubleOrNull() ?: 0.0 }
     val mySharePreview = (totalAmount - friendsTotal).coerceAtLeast(0.0)
-
     val isWide = rememberIsWideScreen()
     val validParticipants = friendNames.indices.mapNotNull { i ->
         val name = friendNames[i].trim()
@@ -488,7 +500,7 @@ fun CreateSplitBillDialog(
                 .widthIn(max = if (isWide) 700.dp else 520.dp)
                 .fillMaxWidth(0.92f)
                 .heightIn(max = 560.dp),
-            shape = RoundedCornerShape(24.dp),
+            shape = RoundedCornerShape(26.dp),
             color = MaterialTheme.colorScheme.surface,
             tonalElevation = 6.dp
         ) {
@@ -519,6 +531,7 @@ fun CreateSplitBillDialog(
                                     onValueChange = { title = it },
                                     label = { Text("Description (e.g. Dinner)") },
                                     singleLine = true,
+                                    shape = RoundedCornerShape(14.dp),
                                     modifier = Modifier.weight(1.4f)
                                 )
                                 OutlinedTextField(
@@ -527,6 +540,7 @@ fun CreateSplitBillDialog(
                                     label = { Text("Total Paid") },
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                     singleLine = true,
+                                    shape = RoundedCornerShape(14.dp),
                                     modifier = Modifier.weight(1f)
                                 )
                                 CurrencyDropdown(
@@ -558,8 +572,9 @@ fun CreateSplitBillDialog(
                             OutlinedTextField(
                                 value = title,
                                 onValueChange = { title = it },
-                                label = { Text("Description (e.g. Dinner at Haidilao)") },
+                                label = { Text("Description (e.g. Dinner)") },
                                 singleLine = true,
+                                shape = RoundedCornerShape(14.dp),
                                 modifier = Modifier.fillMaxWidth()
                             )
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -569,6 +584,7 @@ fun CreateSplitBillDialog(
                                     label = { Text("Total Paid") },
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                     singleLine = true,
+                                    shape = RoundedCornerShape(14.dp),
                                     modifier = Modifier.weight(1.4f)
                                 )
                                 CurrencyDropdown(
@@ -596,33 +612,28 @@ fun CreateSplitBillDialog(
                             onValueChange = { title = it },
                             label = { Text("Description") },
                             singleLine = true,
+                            shape = RoundedCornerShape(14.dp),
                             modifier = Modifier.fillMaxWidth()
                         )
                         Text(
                             text = "Bill Total: ${FormatUtils.formatMoney(totalAmount, currency)}",
                             style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
+                            fontWeight = FontWeight.Bold
                         )
                     }
 
-                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                        listOf(true to "Equal Split", false to "Custom Amounts").forEachIndexed { idx, (isEq, lbl) ->
-                            SegmentedButton(
-                                selected = equalSplit == isEq,
-                                onClick = { equalSplit = isEq },
-                                shape = SegmentedButtonDefaults.itemShape(idx, 2)
-                            ) {
-                                Text(lbl, fontSize = 13.sp)
-                            }
-                        }
-                    }
+                    WarmSegmentedPillBar(
+                        options = listOf("Equal Split", "Custom Amounts"),
+                        selectedIndex = if (equalSplit) 0 else 1,
+                        onSelect = { equalSplit = (it == 0) }
+                    )
 
                     Text(
                         text = "Friends (${friendNames.size}) · Your Share: ${FormatUtils.formatMoney(mySharePreview, currency)}" +
                             if (equalSplit) " (auto-calculated)" else "",
                         style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary
+                        fontWeight = FontWeight.Bold,
+                        color = CoralAccent
                     )
 
                     for (i in friendNames.indices) {
@@ -636,6 +647,7 @@ fun CreateSplitBillDialog(
                                 onValueChange = { friendNames[i] = it },
                                 label = { Text("Friend Name") },
                                 singleLine = true,
+                                shape = RoundedCornerShape(14.dp),
                                 modifier = Modifier.weight(1.3f)
                             )
                             OutlinedTextField(
@@ -649,6 +661,7 @@ fun CreateSplitBillDialog(
                                 enabled = !equalSplit || friendAmounts[i].isNotBlank(),
                                 label = { Text(if (equalSplit) "Owes (Auto)" else "Owes") },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                shape = RoundedCornerShape(14.dp),
                                 colors = if (equalSplit) {
                                     OutlinedTextFieldDefaults.colors(
                                         focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -676,6 +689,7 @@ fun CreateSplitBillDialog(
                             friendNames.add("Friend ${friendNames.size + 1}")
                             friendAmounts.add("")
                         },
+                        shape = RoundedCornerShape(14.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Icon(Icons.Rounded.Add, contentDescription = null)
@@ -696,7 +710,8 @@ fun CreateSplitBillDialog(
                         Text("Cancel")
                     }
                     Spacer(modifier = Modifier.width(10.dp))
-                    Button(
+                    EspressoPillButton(
+                        text = "Create Split",
                         enabled = totalAmount > 0.0 && validParticipants.isNotEmpty(),
                         onClick = {
                             onSave(
@@ -708,9 +723,7 @@ fun CreateSplitBillDialog(
                                 validParticipants
                             )
                         }
-                    ) {
-                        Text("Create Split")
-                    }
+                    )
                 }
             }
         }

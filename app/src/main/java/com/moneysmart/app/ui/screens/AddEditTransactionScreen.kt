@@ -1,9 +1,10 @@
 package com.moneysmart.app.ui.screens
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,20 +21,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.Payments
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -42,19 +39,14 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
@@ -76,14 +68,22 @@ import com.moneysmart.app.data.local.entity.TransactionEntity
 import com.moneysmart.app.data.local.entity.TransactionSource
 import com.moneysmart.app.data.local.entity.TransactionType
 import com.moneysmart.app.data.repository.LedgerCalculations
+import com.moneysmart.app.ui.components.EspressoPillButton
 import com.moneysmart.app.ui.components.ResponsiveContentBox
+import com.moneysmart.app.ui.components.SoftElevatedCard
+import com.moneysmart.app.ui.components.WarmCurvedHeroHeader
+import com.moneysmart.app.ui.components.WarmSegmentedPillBar
 import com.moneysmart.app.ui.components.rememberIsWideScreen
+import com.moneysmart.app.ui.theme.CoralAccent
+import com.moneysmart.app.ui.theme.CoralSoft
+import com.moneysmart.app.ui.theme.EspressoInk
+import com.moneysmart.app.ui.theme.PeachSoft
+import com.moneysmart.app.ui.theme.PeachTint
 import com.moneysmart.app.ui.theme.WarningAmber
 import com.moneysmart.app.ui.viewmodel.MoneySmartViewModel
 import com.moneysmart.app.util.FormatUtils
 import kotlinx.coroutines.launch
 import java.time.Instant
-import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZonedDateTime
@@ -236,47 +236,54 @@ fun AddEditTransactionScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(if (loadedTx == null) "New Transaction" else "Edit Transaction", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                actions = {
-                    if (loadedTx != null) {
-                        TextButton(
-                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                            onClick = { showDeleteConfirm = true }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        WarmCurvedHeroHeader(
+            title = if (loadedTx == null) "New Transaction" else "Edit Transaction",
+            subtitle = if (loadedTx == null) "Log expense, income, or transfer" else "Update amount, account, or bill split",
+            heroColor = PeachSoft,
+            maxWidth = if (isWide) 980.dp else 720.dp,
+            onNavigateBack = onNavigateBack,
+            actions = {
+                if (loadedTx != null) {
+                    Surface(
+                        onClick = { showDeleteConfirm = true },
+                        shape = RoundedCornerShape(12.dp),
+                        color = CoralSoft
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Rounded.Delete, contentDescription = "Delete", modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Delete")
+                            Icon(
+                                Icons.Rounded.DeleteOutline,
+                                contentDescription = "Delete",
+                                tint = CoralAccent,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            if (isWide) {
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Delete", style = MaterialTheme.typography.labelLarge, color = CoralAccent)
+                            }
                         }
                     }
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Button(
-                        onClick = { attemptSave() },
-                        modifier = Modifier
-                            .padding(end = 10.dp)
-                            .height(38.dp),
-                        shape = RoundedCornerShape(10.dp),
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp)
-                    ) {
-                        Icon(Icons.Rounded.Check, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(if (loadedTx == null) "Save" else "Save Changes")
-                    }
                 }
-            )
-        }
-    ) { innerPadding ->
+                EspressoPillButton(
+                    text = "Save",
+                    icon = Icons.Rounded.Check,
+                    onClick = { attemptSave() },
+                    modifier = Modifier.height(40.dp)
+                )
+            }
+        )
+
         ResponsiveContentBox(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
+                .fillMaxWidth()
+                .weight(1f)
                 .verticalScroll(rememberScrollState()),
             maxWidth = if (isWide) 980.dp else 720.dp
         ) {
@@ -287,14 +294,10 @@ fun AddEditTransactionScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 if (loadedTx?.source == TransactionSource.AI_NOTIFICATION) {
-                    Card(
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (needsReview) {
-                                WarningAmber.copy(alpha = 0.14f)
-                            } else {
-                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
-                            }
-                        )
+                    Surface(
+                        color = if (needsReview) WarningAmber.copy(alpha = 0.14f) else PeachTint,
+                        shape = RoundedCornerShape(18.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                     ) {
                         Row(
                             modifier = Modifier
@@ -302,7 +305,7 @@ fun AddEditTransactionScreen(
                                 .padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Rounded.AutoAwesome, contentDescription = null)
+                            Icon(Icons.Rounded.AutoAwesome, contentDescription = null, tint = CoralAccent)
                             Spacer(modifier = Modifier.width(8.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 val confPct = ((loadedTx?.aiConfidence ?: 0f) * 100).toInt()
@@ -333,189 +336,198 @@ fun AddEditTransactionScreen(
 
                 @Composable
                 fun PrimaryFormColumn(modifier: Modifier = Modifier) {
-                    Column(
-                        modifier = modifier,
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                            TransactionType.entries.forEachIndexed { index, type ->
-                                SegmentedButton(
-                                    selected = txType == type,
-                                    onClick = { txType = type },
-                                    shape = SegmentedButtonDefaults.itemShape(index, TransactionType.entries.size)
-                                ) {
-                                    Text(type.displayName)
-                                }
-                            }
-                        }
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    SoftElevatedCard(modifier = modifier, cornerRadius = 22.dp) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            OutlinedTextField(
-                                value = amountText,
-                                onValueChange = { amountText = it },
-                                label = { Text("Amount") },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                singleLine = true,
-                                modifier = Modifier.weight(1.7f)
+                            WarmSegmentedPillBar(
+                                options = TransactionType.entries.map { it.displayName },
+                                selectedIndex = txType.ordinal,
+                                onSelect = { txType = TransactionType.entries[it] }
                             )
-                            CurrencyDropdown(
-                                selectedCurrency = currency,
-                                onSelectCurrency = { newCur ->
-                                    currency = newCur
-                                    scope.launch {
-                                        val rate = viewModel.getExchangeRateToBase(newCur, settings.baseCurrency)
-                                        exchangeRateText = String.format(java.util.Locale.US, "%.4f", rate)
-                                    }
-                                },
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
 
-                        if (!currency.equals(settings.baseCurrency, ignoreCase = true)) {
-                            val parsedAmt = amountText.toDoubleOrNull() ?: 0.0
-                            val parsedRate = exchangeRateText.toDoubleOrNull() ?: 1.0
-                            val basePreview = LedgerCalculations.computeBaseAmount(parsedAmt, parsedRate)
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 OutlinedTextField(
-                                    value = exchangeRateText,
-                                    onValueChange = { exchangeRateText = it },
-                                    label = { Text("1 $currency = ? ${settings.baseCurrency}") },
+                                    value = amountText,
+                                    onValueChange = { amountText = it },
+                                    label = { Text("Amount") },
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                     singleLine = true,
+                                    shape = RoundedCornerShape(14.dp),
+                                    modifier = Modifier.weight(1.7f)
+                                )
+                                CurrencyDropdown(
+                                    selectedCurrency = currency,
+                                    onSelectCurrency = { newCur ->
+                                        currency = newCur
+                                        scope.launch {
+                                            val rate = viewModel.getExchangeRateToBase(newCur, settings.baseCurrency)
+                                            exchangeRateText = String.format(java.util.Locale.US, "%.4f", rate)
+                                        }
+                                    },
                                     modifier = Modifier.weight(1f)
                                 )
-                                Text(
-                                    text = "≈ ${FormatUtils.formatMoney(basePreview, settings.baseCurrency)}",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.SemiBold
+                            }
+
+                            if (!currency.equals(settings.baseCurrency, ignoreCase = true)) {
+                                val parsedAmt = amountText.toDoubleOrNull() ?: 0.0
+                                val parsedRate = exchangeRateText.toDoubleOrNull() ?: 1.0
+                                val basePreview = LedgerCalculations.computeBaseAmount(parsedAmt, parsedRate)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    OutlinedTextField(
+                                        value = exchangeRateText,
+                                        onValueChange = { exchangeRateText = it },
+                                        label = { Text("1 $currency = ? ${settings.baseCurrency}") },
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                        singleLine = true,
+                                        shape = RoundedCornerShape(14.dp),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Text(
+                                        text = "≈ ${FormatUtils.formatMoney(basePreview, settings.baseCurrency)}",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+
+                            SimpleDropdownField(
+                                label = if (txType == TransactionType.TRANSFER) "From Account" else "Account",
+                                selectedLabel = accounts.firstOrNull { it.id == selectedAccountId }?.name ?: "Select Account",
+                                options = accounts.map { it.id to "${it.name} (${it.currency})" },
+                                onSelect = { selectedAccountId = it }
+                            )
+
+                            if (txType == TransactionType.TRANSFER) {
+                                val toCandidates = accounts.filter { it.id != selectedAccountId }
+                                SimpleDropdownField(
+                                    label = "To Account",
+                                    selectedLabel = toCandidates.firstOrNull { it.id == selectedToAccountId }?.name ?: "Select Destination",
+                                    options = toCandidates.map { it.id to "${it.name} (${it.currency})" },
+                                    onSelect = { selectedToAccountId = it }
+                                )
+                            } else {
+                                SimpleDropdownField(
+                                    label = "Category",
+                                    selectedLabel = filteredCategories.firstOrNull { it.first == selectedCategoryId }?.second?.trim()
+                                        ?: "Select Category",
+                                    options = filteredCategories,
+                                    onSelect = { selectedCategoryId = it }
                                 )
                             }
-                        }
-
-                        SimpleDropdownField(
-                            label = if (txType == TransactionType.TRANSFER) "From Account" else "Account",
-                            selectedLabel = accounts.firstOrNull { it.id == selectedAccountId }?.name ?: "Select Account",
-                            options = accounts.map { it.id to "${it.name} (${it.currency})" },
-                            onSelect = { selectedAccountId = it }
-                        )
-
-                        if (txType == TransactionType.TRANSFER) {
-                            val toCandidates = accounts.filter { it.id != selectedAccountId }
-                            SimpleDropdownField(
-                                label = "To Account",
-                                selectedLabel = toCandidates.firstOrNull { it.id == selectedToAccountId }?.name ?: "Select Destination",
-                                options = toCandidates.map { it.id to "${it.name} (${it.currency})" },
-                                onSelect = { selectedToAccountId = it }
-                            )
-                        } else {
-                            SimpleDropdownField(
-                                label = "Category",
-                                selectedLabel = filteredCategories.firstOrNull { it.first == selectedCategoryId }?.second?.trim()
-                                    ?: "Select Category",
-                                options = filteredCategories,
-                                onSelect = { selectedCategoryId = it }
-                            )
                         }
                     }
                 }
 
                 @Composable
                 fun SecondaryFormColumn(modifier: Modifier = Modifier) {
-                    Column(
-                        modifier = modifier,
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        OutlinedTextField(
-                            value = merchant,
-                            onValueChange = { merchant = it },
-                            label = {
-                                Text(
-                                    if (txType == TransactionType.TRANSFER) {
-                                        "Transfer Reference / Description (Optional)"
-                                    } else {
-                                        "Merchant / Payee"
-                                    }
-                                )
-                            },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        OutlinedTextField(
-                            value = note,
-                            onValueChange = { note = it },
-                            label = { Text("Note") },
-                            maxLines = 3,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            OutlinedButton(
-                                onClick = { showDatePicker = true },
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Icon(Icons.Rounded.CalendarMonth, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(FormatUtils.formatDate(timestampMillis))
-                            }
-                            OutlinedButton(
-                                onClick = { showTimePicker = true },
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Icon(Icons.Rounded.Schedule, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(FormatUtils.formatTime(timestampMillis))
-                            }
-                        }
-
-                        if (errorMessage != null) {
-                            Text(
-                                text = errorMessage!!,
-                                color = MaterialTheme.colorScheme.error,
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        }
-
-                        Button(
-                            onClick = { attemptSave() },
+                    SoftElevatedCard(modifier = modifier, cornerRadius = 22.dp) {
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(48.dp)
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Text(if (loadedTx == null) "Save Transaction" else "Save Changes")
-                        }
+                            OutlinedTextField(
+                                value = merchant,
+                                onValueChange = { merchant = it },
+                                label = {
+                                    Text(
+                                        if (txType == TransactionType.TRANSFER) {
+                                            "Transfer Reference / Description (Optional)"
+                                        } else {
+                                            "Merchant / Payee"
+                                        }
+                                    )
+                                },
+                                singleLine = true,
+                                shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            )
 
-                        if (loadedTx != null && loadedTx?.type == TransactionType.EXPENSE) {
-                            OutlinedButton(
-                                onClick = { showLinkRepaymentsDialog = true },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(46.dp)
+                            OutlinedTextField(
+                                value = note,
+                                onValueChange = { note = it },
+                                label = { Text("Note") },
+                                maxLines = 3,
+                                shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Icon(Icons.Rounded.Payments, contentDescription = null)
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Link Friend Repayments (from Income)")
-                            }
-                            if (loadedTx?.splitBillId == null) {
                                 OutlinedButton(
-                                    onClick = { showSplitDialog = true },
+                                    onClick = { showDatePicker = true },
+                                    shape = RoundedCornerShape(14.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Icon(Icons.Rounded.CalendarMonth, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(FormatUtils.formatDate(timestampMillis))
+                                }
+                                OutlinedButton(
+                                    onClick = { showTimePicker = true },
+                                    shape = RoundedCornerShape(14.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Icon(Icons.Rounded.Schedule, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(FormatUtils.formatTime(timestampMillis))
+                                }
+                            }
+
+                            if (errorMessage != null) {
+                                Text(
+                                    text = errorMessage!!,
+                                    color = MaterialTheme.colorScheme.error,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
+
+                            EspressoPillButton(
+                                text = if (loadedTx == null) "Save Transaction" else "Save Changes",
+                                onClick = { attemptSave() },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
+                            if (loadedTx != null && loadedTx?.type == TransactionType.EXPENSE) {
+                                OutlinedButton(
+                                    onClick = { showLinkRepaymentsDialog = true },
+                                    shape = RoundedCornerShape(16.dp),
+                                    border = BorderStroke(1.dp, CoralAccent.copy(alpha = 0.4f)),
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(46.dp)
                                 ) {
-                                    Icon(Icons.Rounded.Groups, contentDescription = null)
+                                    Icon(Icons.Rounded.Payments, contentDescription = null, tint = CoralAccent)
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Split This Bill with Friends")
+                                    Text("Link Friend Repayments (from Income)", color = EspressoInk)
+                                }
+                                if (loadedTx?.splitBillId == null) {
+                                    OutlinedButton(
+                                        onClick = { showSplitDialog = true },
+                                        shape = RoundedCornerShape(16.dp),
+                                        border = BorderStroke(1.dp, CoralAccent.copy(alpha = 0.4f)),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(46.dp)
+                                    ) {
+                                        Icon(Icons.Rounded.Groups, contentDescription = null, tint = CoralAccent)
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Split This Bill with Friends", color = EspressoInk)
+                                    }
                                 }
                             }
                         }
@@ -525,7 +537,7 @@ fun AddEditTransactionScreen(
                 if (isWide) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(18.dp),
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
                         verticalAlignment = Alignment.Top
                     ) {
                         PrimaryFormColumn(modifier = Modifier.weight(1f))
@@ -682,13 +694,14 @@ fun AddEditTransactionScreen(
                         onValueChange = { searchIncome = it },
                         placeholder = { Text("Search friend, account, or amount...") },
                         singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
                         modifier = Modifier.fillMaxWidth()
                     )
                     Text(
                         text = "New Net Expense: ${FormatUtils.formatMoney(newNetExpense, baseTx.currency)}",
                         style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary
+                        fontWeight = FontWeight.Bold,
+                        color = CoralAccent
                     )
                     if (visibleCandidates.isEmpty()) {
                         Text(
@@ -744,7 +757,7 @@ fun AddEditTransactionScreen(
                                     Text(
                                         text = FormatUtils.formatMoney(incTx.amount, incTx.currency),
                                         style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.SemiBold
+                                        fontWeight = FontWeight.Bold
                                     )
                                 }
                             }
@@ -789,6 +802,7 @@ fun CurrencyDropdown(
             onValueChange = {},
             readOnly = true,
             label = { Text("Currency") },
+            shape = RoundedCornerShape(14.dp),
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier
                 .menuAnchor(MenuAnchorType.PrimaryNotEditable)
@@ -828,6 +842,7 @@ fun SimpleDropdownField(
             onValueChange = {},
             readOnly = true,
             label = { Text(label) },
+            shape = RoundedCornerShape(14.dp),
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier
                 .menuAnchor(MenuAnchorType.PrimaryNotEditable)

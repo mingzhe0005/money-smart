@@ -1,5 +1,6 @@
 package com.moneysmart.app.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -13,34 +14,25 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -60,9 +52,13 @@ import com.moneysmart.app.data.local.entity.RecurringTransactionEntity
 import com.moneysmart.app.data.local.entity.TransactionType
 import com.moneysmart.app.ui.components.EmptyStateCard
 import com.moneysmart.app.ui.components.ResponsiveContentBox
+import com.moneysmart.app.ui.components.SoftElevatedCard
 import com.moneysmart.app.ui.components.TopBarAddButton
+import com.moneysmart.app.ui.components.WarmCurvedHeroHeader
+import com.moneysmart.app.ui.components.WarmSegmentedPillBar
 import com.moneysmart.app.ui.theme.ExpenseRed
 import com.moneysmart.app.ui.theme.IncomeGreen
+import com.moneysmart.app.ui.theme.PeachSoft
 import com.moneysmart.app.ui.viewmodel.MoneySmartViewModel
 import com.moneysmart.app.util.FormatUtils
 
@@ -83,32 +79,32 @@ fun RecurringScreen(
     var editingItem by remember { mutableStateOf<RecurringTransactionEntity?>(null) }
     var showDialog by remember { mutableStateOf(false) }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Recurring & Subscriptions", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        WarmCurvedHeroHeader(
+            title = "Recurring & Subscriptions",
+            subtitle = "Automate salary, bills, and regular transfers",
+            heroColor = PeachSoft,
+            maxWidth = 900.dp,
+            onNavigateBack = onNavigateBack,
+            actions = {
+                TopBarAddButton(
+                    label = "Add",
+                    onClick = {
+                        editingItem = null
+                        showDialog = true
                     }
-                },
-                actions = {
-                    TopBarAddButton(
-                        label = "Add",
-                        onClick = {
-                            editingItem = null
-                            showDialog = true
-                        },
-                        modifier = Modifier.padding(end = 10.dp)
-                    )
-                }
-            )
-        }
-    ) { innerPadding ->
+                )
+            }
+        )
+
         ResponsiveContentBox(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
+                .fillMaxWidth()
+                .weight(1f),
             maxWidth = 900.dp
         ) {
             if (recurringList.isEmpty()) {
@@ -134,15 +130,15 @@ fun RecurringScreen(
                         val catName = item.categoryId?.let { categoryMap[it]?.name } ?: item.type.displayName
                         val amountColor = if (item.type == TransactionType.INCOME) IncomeGreen else ExpenseRed
 
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    editingItem = item
-                                    showDialog = true
-                                }
+                        SoftElevatedCard(
+                            onClick = {
+                                editingItem = item
+                                showDialog = true
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            cornerRadius = 20.dp
                         ) {
-                            Column(modifier = Modifier.padding(14.dp)) {
+                            Column(modifier = Modifier.padding(16.dp)) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -152,7 +148,7 @@ fun RecurringScreen(
                                         Text(
                                             text = item.title,
                                             style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.SemiBold
+                                            fontWeight = FontWeight.Bold
                                         )
                                         Text(
                                             text = "Every ${item.intervalCount} ${item.frequency.displayName.lowercase()} · $accName · $catName",
@@ -183,6 +179,7 @@ fun RecurringScreen(
                                 Spacer(modifier = Modifier.height(6.dp))
                                 OutlinedButton(
                                     onClick = { viewModel.executeRecurringNow(item.id) },
+                                    shape = RoundedCornerShape(12.dp),
                                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                                 ) {
                                     Icon(Icons.Rounded.PlayArrow, contentDescription = null)
@@ -251,21 +248,16 @@ private fun RecurringEditorDialog(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                    listOf(TransactionType.EXPENSE, TransactionType.INCOME).forEachIndexed { idx, t ->
-                        SegmentedButton(
-                            selected = txType == t,
-                            onClick = {
-                                txType = t
-                                val catType = if (t == TransactionType.INCOME) CategoryType.INCOME else CategoryType.EXPENSE
-                                categoryId = categories.firstOrNull { it.type == catType }?.id
-                            },
-                            shape = SegmentedButtonDefaults.itemShape(idx, 2)
-                        ) {
-                            Text(t.displayName)
-                        }
+                WarmSegmentedPillBar(
+                    options = listOf(TransactionType.EXPENSE.displayName, TransactionType.INCOME.displayName),
+                    selectedIndex = if (txType == TransactionType.EXPENSE) 0 else 1,
+                    onSelect = { idx ->
+                        val t = if (idx == 0) TransactionType.EXPENSE else TransactionType.INCOME
+                        txType = t
+                        val catType = if (t == TransactionType.INCOME) CategoryType.INCOME else CategoryType.EXPENSE
+                        categoryId = categories.firstOrNull { it.type == catType }?.id
                     }
-                }
+                )
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },

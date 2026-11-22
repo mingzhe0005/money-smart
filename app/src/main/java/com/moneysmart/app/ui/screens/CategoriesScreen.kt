@@ -20,26 +20,15 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
@@ -56,9 +45,16 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.moneysmart.app.data.local.entity.CategoryEntity
 import com.moneysmart.app.data.local.entity.CategoryType
 import com.moneysmart.app.ui.components.IconCatalog
+import com.moneysmart.app.ui.components.ResponsiveContentBox
+import com.moneysmart.app.ui.components.SoftElevatedCard
+import com.moneysmart.app.ui.components.SquircleIconBadge
+import com.moneysmart.app.ui.components.TopBarAddButton
+import com.moneysmart.app.ui.components.WarmCurvedHeroHeader
+import com.moneysmart.app.ui.components.WarmSegmentedPillBar
+import com.moneysmart.app.ui.theme.CoralAccent
+import com.moneysmart.app.ui.theme.PeachSoft
 import com.moneysmart.app.ui.viewmodel.MoneySmartViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CategoriesScreen(
     viewModel: MoneySmartViewModel,
@@ -75,119 +71,103 @@ fun CategoriesScreen(
     }
     val parents = remember(filtered) { filtered.filter { it.parentId == null } }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Categories & Subcategories", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        WarmCurvedHeroHeader(
+            title = "Categories & Subcategories",
+            subtitle = "Organize spending & income labels for AI auto-tagging",
+            heroColor = PeachSoft,
+            maxWidth = 900.dp,
+            onNavigateBack = onNavigateBack,
+            actions = {
+                TopBarAddButton(
+                    label = "Add",
+                    onClick = {
+                        editingCategory = null
+                        presetParentId = null
+                        showDialog = true
                     }
-                }
-            )
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = {
-                    editingCategory = null
-                    presetParentId = null
-                    showDialog = true
-                },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
-            ) {
-                Icon(Icons.Rounded.Add, contentDescription = "Add category")
+                )
             }
-        }
-    ) { innerPadding ->
-        Column(
+        )
+
+        ResponsiveContentBox(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
+                .fillMaxWidth()
+                .weight(1f),
+            maxWidth = 900.dp
         ) {
-            SingleChoiceSegmentedButtonRow(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-            ) {
-                CategoryType.entries.forEachIndexed { idx, type ->
-                    SegmentedButton(
-                        selected = selectedType == type,
-                        onClick = { selectedType = type },
-                        shape = SegmentedButtonDefaults.itemShape(idx, CategoryType.entries.size)
-                    ) {
-                        Text(type.displayName)
-                    }
-                }
-            }
+            Column(modifier = Modifier.fillMaxSize()) {
+                WarmSegmentedPillBar(
+                    options = CategoryType.entries.map { it.displayName },
+                    selectedIndex = selectedType.ordinal,
+                    onSelect = { selectedType = CategoryType.entries[it] },
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
 
-            LazyColumn(
-                contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 88.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(parents, key = { it.id }) { parent ->
-                    val children = filtered.filter { it.parentId == parent.id }
-                    val accent = Color(parent.colorHex)
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        editingCategory = parent
-                                        presetParentId = null
-                                        showDialog = true
-                                    },
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .clip(CircleShape)
-                                        .background(accent.copy(alpha = 0.15f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = IconCatalog.resolve(parent.iconName),
-                                        contentDescription = null,
-                                        tint = accent,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Text(
-                                    text = parent.name,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.SemiBold,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                TextButton(
-                                    onClick = {
-                                        editingCategory = null
-                                        presetParentId = parent.id
-                                        showDialog = true
-                                    }
-                                ) {
-                                    Text("+ Sub")
-                                }
-                            }
-
-                            children.forEach { child ->
+                LazyColumn(
+                    contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 24.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(parents, key = { it.id }) { parent ->
+                        val children = filtered.filter { it.parentId == parent.id }
+                        val accent = Color(parent.colorHex)
+                        SoftElevatedCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 18.dp) {
+                            Column(modifier = Modifier.padding(14.dp)) {
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clickable {
-                                            editingCategory = child
-                                            presetParentId = child.parentId
+                                            editingCategory = parent
+                                            presetParentId = null
                                             showDialog = true
-                                        }
-                                        .padding(start = 46.dp, top = 6.dp, bottom = 6.dp),
+                                        },
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(
-                                        text = "↳ ${child.name}",
-                                        style = MaterialTheme.typography.bodyLarge
+                                    SquircleIconBadge(
+                                        icon = IconCatalog.resolve(parent.iconName),
+                                        tint = accent,
+                                        containerColor = accent.copy(alpha = 0.14f),
+                                        size = 40.dp
                                     )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text(
+                                        text = parent.name,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    TextButton(
+                                        onClick = {
+                                            editingCategory = null
+                                            presetParentId = parent.id
+                                            showDialog = true
+                                        }
+                                    ) {
+                                        Text("+ Sub", color = CoralAccent, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+
+                                children.forEach { child ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                editingCategory = child
+                                                presetParentId = child.parentId
+                                                showDialog = true
+                                            }
+                                            .padding(start = 52.dp, top = 6.dp, bottom = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "↳ ${child.name}",
+                                            style = MaterialTheme.typography.bodyLarge
+                                        )
+                                    }
                                 }
                             }
                         }

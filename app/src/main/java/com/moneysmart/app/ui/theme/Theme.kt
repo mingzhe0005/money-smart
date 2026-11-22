@@ -1,64 +1,82 @@
 package com.moneysmart.app.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import com.moneysmart.app.data.local.ThemeMode
 
 private val LightColorScheme = lightColorScheme(
-    primary = EmeraldPrimary,
-    onPrimary = EmeraldOnPrimary,
-    primaryContainer = EmeraldPrimaryContainer,
-    onPrimaryContainer = EmeraldOnPrimaryContainer,
-    secondary = SlateSecondary,
-    onSecondary = SlateOnSecondary,
-    secondaryContainer = SlateSecondaryContainer,
-    onSecondaryContainer = SlateOnSecondaryContainer,
-    tertiary = AccentBlue,
-    background = LightBackground,
-    surface = LightSurface,
-    surfaceDim = LightSurfaceContainerHighest,
-    surfaceBright = LightSurface,
-    surfaceContainerLowest = LightSurfaceContainerLowest,
-    surfaceContainerLow = LightSurfaceContainerLow,
+    primary = CoralAccent,
+    onPrimary = Color.White,
+    primaryContainer = PeachSoft,
+    onPrimaryContainer = EspressoInk,
+    secondary = EspressoInk,
+    onSecondary = Color.White,
+    secondaryContainer = TrackBeige,
+    onSecondaryContainer = EspressoInk,
+    tertiary = ApricotHero,
+    onTertiary = EspressoInk,
+    tertiaryContainer = PeachTint,
+    onTertiaryContainer = EspressoInk,
+    background = WarmCanvas,
+    onBackground = EspressoInk,
+    surface = PureCard,
+    onSurface = EspressoInk,
+    surfaceDim = LightSurfaceHighest,
+    surfaceBright = PureCard,
+    surfaceContainerLowest = LightSurfaceLowest,
+    surfaceContainerLow = LightSurfaceLow,
     surfaceContainer = LightSurfaceContainer,
-    surfaceContainerHigh = LightSurfaceContainerHigh,
-    surfaceContainerHighest = LightSurfaceContainerHighest,
+    surfaceContainerHigh = LightSurfaceHigh,
+    surfaceContainerHighest = LightSurfaceHighest,
     surfaceVariant = LightSurfaceVariant,
-    outline = LightOutline,
-    outlineVariant = LightOutlineVariant,
-    onBackground = LightOnSurface,
-    onSurface = LightOnSurface,
-    onSurfaceVariant = LightOnSurfaceVariant,
-    error = ExpenseRed
+    onSurfaceVariant = WarmStone,
+    outline = WarmOutline,
+    outlineVariant = WarmOutlineVariant,
+    error = ExpenseRed,
+    onError = Color.White
 )
 
 private val DarkColorScheme = darkColorScheme(
-    primary = EmeraldPrimaryContainer,
-    onPrimary = EmeraldOnPrimaryContainer,
-    primaryContainer = EmeraldPrimary,
-    onPrimaryContainer = EmeraldPrimaryContainer,
-    secondary = SlateSecondaryContainer,
-    onSecondary = SlateOnSecondaryContainer,
-    secondaryContainer = SlateSecondary,
-    onSecondaryContainer = SlateSecondaryContainer,
-    tertiary = TransferBlueDark,
-    background = DarkBackground,
-    surface = DarkSurface,
-    surfaceContainerLowest = DarkBackground,
-    surfaceContainerLow = DarkSurfaceContainerLow,
-    surfaceContainer = DarkSurfaceContainer,
-    surfaceContainerHigh = DarkSurfaceContainerHigh,
-    surfaceContainerHighest = DarkSurfaceContainerHighest,
+    primary = CoralAccent,
+    onPrimary = Color.White,
+    primaryContainer = EspressoSurface,
+    onPrimaryContainer = PeachSoft,
+    secondary = PeachSoft,
+    onSecondary = EspressoInk,
+    secondaryContainer = DarkContainer,
+    onSecondaryContainer = DarkCreamInk,
+    tertiary = ApricotHero,
+    onTertiary = EspressoInk,
+    background = DarkEspressoBg,
+    onBackground = DarkCreamInk,
+    surface = DarkCard,
+    onSurface = DarkCreamInk,
+    surfaceContainerLowest = DarkEspressoBg,
+    surfaceContainerLow = DarkCard,
+    surfaceContainer = DarkContainer,
+    surfaceContainerHigh = DarkContainerHigh,
+    surfaceContainerHighest = DarkContainerHighest,
     surfaceVariant = DarkSurfaceVariant,
+    onSurfaceVariant = DarkWarmMuted,
     outline = DarkOutline,
     outlineVariant = DarkOutlineVariant,
-    onBackground = DarkOnSurface,
-    onSurface = DarkOnSurface,
-    onSurfaceVariant = DarkOnSurfaceVariant,
-    error = ExpenseRedDark
+    error = ExpenseRedDark,
+    onError = DarkEspressoBg
+)
+
+val MoneySmartShapes = Shapes(
+    extraSmall = RoundedCornerShape(8.dp),
+    small = RoundedCornerShape(12.dp),
+    medium = RoundedCornerShape(18.dp),
+    large = RoundedCornerShape(24.dp),
+    extraLarge = RoundedCornerShape(28.dp)
 )
 
 @Composable
@@ -75,6 +93,7 @@ fun MoneySmartTheme(
     MaterialTheme(
         colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme,
         typography = MoneySmartTypography,
+        shapes = MoneySmartShapes,
         content = content
     )
 }

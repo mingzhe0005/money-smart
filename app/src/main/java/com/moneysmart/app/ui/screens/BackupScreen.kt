@@ -4,6 +4,8 @@ import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,27 +15,21 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Backup
 import androidx.compose.material.icons.rounded.FileUpload
 import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.TableChart
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -46,12 +42,18 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.moneysmart.app.ui.components.EspressoPillButton
 import com.moneysmart.app.ui.components.ResponsiveContentBox
+import com.moneysmart.app.ui.components.SoftElevatedCard
+import com.moneysmart.app.ui.components.WarmCurvedHeroHeader
+import com.moneysmart.app.ui.theme.CoralAccent
+import com.moneysmart.app.ui.theme.EspressoInk
+import com.moneysmart.app.ui.theme.PeachSoft
+import com.moneysmart.app.ui.theme.PeachTint
 import com.moneysmart.app.ui.viewmodel.MoneySmartViewModel
 import com.moneysmart.app.util.FormatUtils
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BackupScreen(
     viewModel: MoneySmartViewModel,
@@ -117,22 +119,23 @@ fun BackupScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Backup & Restore", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
-                    }
-                }
-            )
-        }
-    ) { innerPadding ->
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        WarmCurvedHeroHeader(
+            title = "Backup & Restore",
+            subtitle = "Google Drive JSON snapshots, CSV export & Excel import",
+            heroColor = PeachSoft,
+            maxWidth = 860.dp,
+            onNavigateBack = onNavigateBack
+        )
+
         ResponsiveContentBox(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
+                .fillMaxWidth()
+                .weight(1f)
                 .verticalScroll(rememberScrollState()),
             maxWidth = 860.dp
         ) {
@@ -142,39 +145,41 @@ fun BackupScreen(
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Card(
+                Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
-                    )
+                    shape = RoundedCornerShape(20.dp),
+                    color = PeachTint,
+                    border = BorderStroke(1.dp, CoralAccent.copy(alpha = 0.25f))
                 ) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(14.dp),
+                            .padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Text(
                             text = "Free Google Drive & Local Backup",
                             style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
+                            color = EspressoInk,
+                            fontWeight = FontWeight.Bold
                         )
                         Text(
                             text = "Money Smart uses Android's Storage Access Framework (100% free, zero cloud fees). " +
                                 "When choosing a backup folder, pick your Google Drive folder or a local folder on your device.",
-                            style = MaterialTheme.typography.bodyMedium
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = EspressoInk.copy(alpha = 0.85f)
                         )
                     }
                 }
 
-                Card(modifier = Modifier.fillMaxWidth()) {
+                SoftElevatedCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 22.dp) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(14.dp),
+                            .padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Text("Backup Destination", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text("Backup Destination", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         Text(
                             text = if (settings.backupFolderUri.isBlank()) {
                                 "No folder selected yet."
@@ -195,6 +200,7 @@ fun BackupScreen(
                         )
                         OutlinedButton(
                             onClick = { folderPickerLauncher.launch(null) },
+                            shape = RoundedCornerShape(14.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Icon(Icons.Rounded.FolderOpen, contentDescription = null)
@@ -224,7 +230,9 @@ fun BackupScreen(
                     }
                 }
 
-                Button(
+                EspressoPillButton(
+                    text = "Backup JSON Now",
+                    icon = Icons.Rounded.Backup,
                     enabled = !isWorking && settings.backupFolderUri.isNotBlank(),
                     onClick = {
                         isWorking = true
@@ -238,12 +246,8 @@ fun BackupScreen(
                             isWorking = false
                         }
                     },
-                    modifier = Modifier.fillMaxWidth().height(48.dp)
-                ) {
-                    Icon(Icons.Rounded.Backup, contentDescription = null)
-                    Spacer(modifier = Modifier.padding(4.dp))
-                    Text("Backup JSON Now")
-                }
+                    modifier = Modifier.fillMaxWidth()
+                )
 
                 OutlinedButton(
                     enabled = !isWorking && settings.backupFolderUri.isNotBlank(),
@@ -259,6 +263,7 @@ fun BackupScreen(
                             isWorking = false
                         }
                     },
+                    shape = RoundedCornerShape(16.dp),
                     modifier = Modifier.fillMaxWidth().height(48.dp)
                 ) {
                     Icon(Icons.Rounded.TableChart, contentDescription = null)
@@ -277,6 +282,7 @@ fun BackupScreen(
                 OutlinedButton(
                     enabled = !isWorking,
                     onClick = { restoreFileLauncher.launch(arrayOf("application/json", "*/*")) },
+                    shape = RoundedCornerShape(16.dp),
                     modifier = Modifier.fillMaxWidth().height(48.dp)
                 ) {
                     Icon(Icons.Rounded.Restore, contentDescription = null)
@@ -284,32 +290,30 @@ fun BackupScreen(
                     Text("Restore from JSON Backup File")
                 }
 
-                Card(modifier = Modifier.fillMaxWidth()) {
+                SoftElevatedCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 22.dp) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(14.dp),
+                            .padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text(
                             text = "Import from Money Manager (.xls / .xlsx / .csv)",
                             style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
+                            fontWeight = FontWeight.Bold
                         )
                         Text(
                             text = "Import your existing Money Manager Excel export from Google Drive or local storage. Accounts, categories, foreign currencies, and transfers are preserved and immediately used for AI habit learning.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        Button(
+                        EspressoPillButton(
+                            text = "Import Money Manager Excel",
+                            icon = Icons.Rounded.FileUpload,
                             enabled = !isWorking,
                             onClick = { importMoneyManagerLauncher.launch(arrayOf("*/*")) },
-                            modifier = Modifier.fillMaxWidth().height(48.dp)
-                        ) {
-                            Icon(Icons.Rounded.FileUpload, contentDescription = null)
-                            Spacer(modifier = Modifier.padding(4.dp))
-                            Text("Import Money Manager Excel")
-                        }
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
                 }
 
@@ -318,14 +322,11 @@ fun BackupScreen(
                 }
 
                 if (statusMessage != null) {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
-                    ) {
+                    SoftElevatedCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 18.dp) {
                         Text(
                             text = statusMessage!!,
                             style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.padding(12.dp)
+                            modifier = Modifier.padding(14.dp)
                         )
                     }
                 }

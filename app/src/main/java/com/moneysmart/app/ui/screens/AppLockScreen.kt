@@ -12,12 +12,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Backspace
 import androidx.compose.material.icons.rounded.Fingerprint
 import androidx.compose.material.icons.rounded.Lock
-import androidx.compose.material3.Button
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -38,6 +37,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.fragment.app.FragmentActivity
 import com.moneysmart.app.security.AppLockManager
+import com.moneysmart.app.ui.components.EspressoPillButton
+import com.moneysmart.app.ui.components.SquircleIconBadge
+import com.moneysmart.app.ui.theme.CoralAccent
+import com.moneysmart.app.ui.theme.CoralSoft
+import com.moneysmart.app.ui.theme.TrackBeige
 
 @Composable
 fun AppLockScreen(
@@ -76,19 +80,21 @@ fun AppLockScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Icon(
-                imageVector = Icons.Rounded.Lock,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(44.dp)
+            SquircleIconBadge(
+                icon = Icons.Rounded.Lock,
+                tint = CoralAccent,
+                containerColor = CoralSoft,
+                size = 64.dp,
+                iconSize = 30.dp,
+                cornerRadius = 20.dp
             )
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(14.dp))
             Text(
                 text = "Money Smart Locked",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold
             )
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = "Enter your PIN to continue",
                 style = MaterialTheme.typography.bodyMedium,
@@ -103,10 +109,7 @@ fun AppLockScreen(
                         modifier = Modifier
                             .size(14.dp)
                             .clip(CircleShape)
-                            .background(
-                                if (filled) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.surfaceVariant
-                            )
+                            .background(if (filled) CoralAccent else TrackBeige)
                     )
                 }
             }
@@ -130,7 +133,7 @@ fun AppLockScreen(
                 rows.forEach { row ->
                     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                         row.forEach { digit ->
-                            FilledTonalButton(
+                            Surface(
                                 onClick = {
                                     if (enteredPin.length < 6) {
                                         enteredPin += digit
@@ -142,28 +145,35 @@ fun AppLockScreen(
                                         }
                                     }
                                 },
-                                modifier = Modifier.size(72.dp),
-                                shape = CircleShape
+                                modifier = Modifier.size(68.dp),
+                                shape = RoundedCornerShape(20.dp),
+                                color = MaterialTheme.colorScheme.surface,
+                                shadowElevation = 1.dp
                             ) {
-                                Text(digit, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text(digit, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                                }
                             }
                         }
                     }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
                     if (biometricEnabled && AppLockManager.isBiometricAvailable(context)) {
-                        FilledTonalButton(
+                        Surface(
                             onClick = { triggerBiometric() },
-                            modifier = Modifier.size(72.dp),
-                            shape = CircleShape
+                            modifier = Modifier.size(68.dp),
+                            shape = RoundedCornerShape(20.dp),
+                            color = CoralSoft
                         ) {
-                            Icon(Icons.Rounded.Fingerprint, contentDescription = "Biometric unlock")
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(Icons.Rounded.Fingerprint, contentDescription = "Biometric unlock", tint = CoralAccent)
+                            }
                         }
                     } else {
-                        Spacer(modifier = Modifier.size(72.dp))
+                        Spacer(modifier = Modifier.size(68.dp))
                     }
 
-                    FilledTonalButton(
+                    Surface(
                         onClick = {
                             if (enteredPin.length < 6) {
                                 enteredPin += "0"
@@ -175,29 +185,37 @@ fun AppLockScreen(
                                 }
                             }
                         },
-                        modifier = Modifier.size(72.dp),
-                        shape = CircleShape
+                        modifier = Modifier.size(68.dp),
+                        shape = RoundedCornerShape(20.dp),
+                        color = MaterialTheme.colorScheme.surface,
+                        shadowElevation = 1.dp
                     ) {
-                        Text("0", fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+                        Box(contentAlignment = Alignment.Center) {
+                            Text("0", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
 
-                    FilledTonalButton(
+                    Surface(
                         onClick = {
                             if (enteredPin.isNotEmpty()) {
                                 enteredPin = enteredPin.dropLast(1)
                                 errorMsg = null
                             }
                         },
-                        modifier = Modifier.size(72.dp),
-                        shape = CircleShape
+                        modifier = Modifier.size(68.dp),
+                        shape = RoundedCornerShape(20.dp),
+                        color = TrackBeige
                     ) {
-                        Icon(Icons.AutoMirrored.Rounded.Backspace, contentDescription = "Backspace")
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(Icons.AutoMirrored.Rounded.Backspace, contentDescription = "Backspace")
+                        }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-            Button(
+            Spacer(modifier = Modifier.height(18.dp))
+            EspressoPillButton(
+                text = "Unlock",
                 enabled = enteredPin.length >= 4,
                 onClick = {
                     if (AppLockManager.verifyPin(enteredPin, expectedHash, salt)) {
@@ -208,9 +226,7 @@ fun AppLockScreen(
                     }
                 },
                 modifier = Modifier.width(220.dp)
-            ) {
-                Text("Unlock")
-            }
+            )
             if (enteredPin.isNotEmpty()) {
                 TextButton(onClick = { enteredPin = ""; errorMsg = null }) {
                     Text("Clear")

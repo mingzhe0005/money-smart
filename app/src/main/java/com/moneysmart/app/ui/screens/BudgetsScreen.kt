@@ -1,5 +1,6 @@
 package com.moneysmart.app.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -14,27 +15,18 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -53,9 +45,14 @@ import com.moneysmart.app.data.local.entity.CategoryType
 import com.moneysmart.app.ui.components.EmptyStateCard
 import com.moneysmart.app.ui.components.MonthSelectorBar
 import com.moneysmart.app.ui.components.ResponsiveContentBox
+import com.moneysmart.app.ui.components.SoftElevatedCard
 import com.moneysmart.app.ui.components.TopBarAddButton
+import com.moneysmart.app.ui.components.WarmCurvedHeroHeader
+import com.moneysmart.app.ui.theme.CoralAccent
 import com.moneysmart.app.ui.theme.ExpenseRed
 import com.moneysmart.app.ui.theme.IncomeGreen
+import com.moneysmart.app.ui.theme.PeachSoft
+import com.moneysmart.app.ui.theme.TrackBeige
 import com.moneysmart.app.ui.theme.WarningAmber
 import com.moneysmart.app.ui.viewmodel.MoneySmartViewModel
 import com.moneysmart.app.util.FormatUtils
@@ -78,32 +75,32 @@ fun BudgetsScreen(
     var showDialog by remember { mutableStateOf(false) }
     var editingBudget by remember { mutableStateOf<BudgetEntity?>(null) }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Monthly Budgets", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        WarmCurvedHeroHeader(
+            title = "Monthly Budgets",
+            subtitle = "Category limits with 80% & 100% proactive alerts",
+            heroColor = PeachSoft,
+            maxWidth = 900.dp,
+            onNavigateBack = onNavigateBack,
+            actions = {
+                TopBarAddButton(
+                    label = "Add",
+                    onClick = {
+                        editingBudget = null
+                        showDialog = true
                     }
-                },
-                actions = {
-                    TopBarAddButton(
-                        label = "Add",
-                        onClick = {
-                            editingBudget = null
-                            showDialog = true
-                        },
-                        modifier = Modifier.padding(end = 10.dp)
-                    )
-                }
-            )
-        }
-    ) { innerPadding ->
+                )
+            }
+        )
+
         ResponsiveContentBox(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
+                .fillMaxWidth()
+                .weight(1f),
             maxWidth = 900.dp
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
@@ -132,19 +129,19 @@ fun BudgetsScreen(
                             val ratio = item.progressRatio
                             val pct = (ratio * 100f).toInt()
                             val barColor = when {
-                                ratio >= 1f -> ExpenseRed
+                                ratio >= 1f -> CoralAccent
                                 ratio >= (item.budget.alertThresholdPercent / 100f) -> WarningAmber
                                 else -> IncomeGreen
                             }
                             val remaining = item.budget.limitAmount - item.spentAmount
 
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        editingBudget = item.budget
-                                        showDialog = true
-                                    }
+                            SoftElevatedCard(
+                                onClick = {
+                                    editingBudget = item.budget
+                                    showDialog = true
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                cornerRadius = 20.dp
                             ) {
                                 Column(modifier = Modifier.padding(16.dp)) {
                                     Row(
@@ -155,12 +152,12 @@ fun BudgetsScreen(
                                         Text(
                                             text = item.categoryName,
                                             style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.SemiBold
+                                            fontWeight = FontWeight.Bold
                                         )
                                         Text(
                                             text = "$pct%",
                                             style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.Bold,
+                                            fontWeight = FontWeight.ExtraBold,
                                             color = barColor
                                         )
                                     }
@@ -168,7 +165,7 @@ fun BudgetsScreen(
                                     LinearProgressIndicator(
                                         progress = { ratio.coerceIn(0f, 1f) },
                                         color = barColor,
-                                        trackColor = barColor.copy(alpha = 0.16f),
+                                        trackColor = TrackBeige,
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .height(8.dp)
@@ -191,7 +188,7 @@ fun BudgetsScreen(
                                                 "Over by ${FormatUtils.formatMoney(-remaining, settings.baseCurrency)}"
                                             },
                                             style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = FontWeight.Medium,
+                                            fontWeight = FontWeight.SemiBold,
                                             color = if (remaining >= 0) MaterialTheme.colorScheme.onSurface else ExpenseRed
                                         )
                                     }

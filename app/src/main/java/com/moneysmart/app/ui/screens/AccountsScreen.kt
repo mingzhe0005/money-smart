@@ -1,7 +1,9 @@
 package com.moneysmart.app.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,7 +22,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -31,8 +32,6 @@ import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -43,12 +42,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -57,7 +54,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -68,18 +64,28 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.moneysmart.app.data.local.entity.AccountEntity
 import com.moneysmart.app.data.local.entity.AccountType
 import com.moneysmart.app.data.repository.AccountWithBalance
+import com.moneysmart.app.ui.components.BauhausCornerArt
+import com.moneysmart.app.ui.components.EspressoPillButton
 import com.moneysmart.app.ui.components.IconCatalog
 import com.moneysmart.app.ui.components.LabeledActionButton
 import com.moneysmart.app.ui.components.ResponsiveContentBox
+import com.moneysmart.app.ui.components.SoftElevatedCard
+import com.moneysmart.app.ui.components.SquircleIconBadge
 import com.moneysmart.app.ui.components.TopBarAddButton
+import com.moneysmart.app.ui.components.WarmCurvedHeroHeader
 import com.moneysmart.app.ui.components.rememberIsWideScreen
+import com.moneysmart.app.ui.theme.ApricotHero
+import com.moneysmart.app.ui.theme.CoralAccent
+import com.moneysmart.app.ui.theme.CoralSoft
+import com.moneysmart.app.ui.theme.EspressoInk
 import com.moneysmart.app.ui.theme.ExpenseRed
-import com.moneysmart.app.ui.theme.IncomeGreen
+import com.moneysmart.app.ui.theme.IncomeGreenDark
+import com.moneysmart.app.ui.theme.PeachTint
+import com.moneysmart.app.ui.theme.TrackBeige
 import com.moneysmart.app.ui.viewmodel.MoneySmartViewModel
 import com.moneysmart.app.util.FormatUtils
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AccountsScreen(
     viewModel: MoneySmartViewModel,
@@ -88,8 +94,9 @@ fun AccountsScreen(
     val scope = rememberCoroutineScope()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val accountsWithBalances by viewModel.accountsWithBalances.collectAsStateWithLifecycle()
-
     val isWide = rememberIsWideScreen()
+    val isDark = isSystemInDarkTheme()
+
     var editingItem by remember { mutableStateOf<AccountWithBalance?>(null) }
     var showAccountDialog by remember { mutableStateOf(false) }
     var statusBanner by remember { mutableStateOf<String?>(null) }
@@ -107,68 +114,73 @@ fun AccountsScreen(
         accountsWithBalances.groupBy { it.account.type }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Accounts & Wallets", fontWeight = FontWeight.Bold) },
-                actions = {
-                    LabeledActionButton(
-                        icon = Icons.Rounded.Refresh,
-                        label = if (isSyncing) "Syncing..." else "Sync Prices",
-                        enabled = !isSyncing,
-                        onClick = {
-                            isSyncing = true
-                            statusBanner = "Syncing live investments & exchange rates..."
-                            scope.launch {
-                                val res = viewModel.syncLiveInvestmentsNow()
-                                statusBanner = res.fold(
-                                    onSuccess = { count ->
-                                        if (count > 0) {
-                                            "Synced $count live investment account(s)."
-                                        } else {
-                                            "All accounts up to date. Tap an investment account to set a live price ticker and units."
-                                        }
-                                    },
-                                    onFailure = { err -> "Live sync failed: ${err.message}" }
-                                )
-                                isSyncing = false
-                            }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        WarmCurvedHeroHeader(
+            title = "Accounts & Wallets",
+            subtitle = "${accountsWithBalances.size} active balances · Auto-recharge & live assets",
+            heroColor = ApricotHero,
+            useLightArtOnApricot = true,
+            maxWidth = if (isWide) 1040.dp else 920.dp,
+            actions = {
+                LabeledActionButton(
+                    icon = Icons.Rounded.Refresh,
+                    label = if (isSyncing) "Syncing..." else "Sync Prices",
+                    enabled = !isSyncing,
+                    onClick = {
+                        isSyncing = true
+                        statusBanner = "Syncing live investments & exchange rates..."
+                        scope.launch {
+                            val res = viewModel.syncLiveInvestmentsNow()
+                            statusBanner = res.fold(
+                                onSuccess = { count ->
+                                    if (count > 0) {
+                                        "Synced $count live investment account(s)."
+                                    } else {
+                                        "All accounts up to date. Tap an investment account to set a live price ticker and units."
+                                    }
+                                },
+                                onFailure = { err -> "Live sync failed: ${err.message}" }
+                            )
+                            isSyncing = false
                         }
-                    )
-                    LabeledActionButton(
-                        icon = Icons.Rounded.SwapHoriz,
-                        label = "Transfer",
-                        onClick = onQuickTransfer
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    TopBarAddButton(
-                        label = "Add",
-                        onClick = {
-                            editingItem = null
-                            showAccountDialog = true
-                        },
-                        modifier = Modifier.padding(end = 10.dp)
-                    )
-                }
-            )
-        }
-    ) { innerPadding ->
+                    }
+                )
+                LabeledActionButton(
+                    icon = Icons.Rounded.SwapHoriz,
+                    label = "Transfer",
+                    onClick = onQuickTransfer
+                )
+                TopBarAddButton(
+                    label = "Add",
+                    onClick = {
+                        editingItem = null
+                        showAccountDialog = true
+                    }
+                )
+            }
+        )
+
         ResponsiveContentBox(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
+                .fillMaxWidth()
+                .weight(1f),
             maxWidth = if (isWide) 1040.dp else 920.dp
         ) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 28.dp),
+                contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 28.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 if (statusBanner != null) {
                     item {
                         Surface(
-                            color = MaterialTheme.colorScheme.secondaryContainer,
-                            shape = MaterialTheme.shapes.medium,
+                            color = PeachTint,
+                            border = BorderStroke(1.dp, CoralAccent.copy(alpha = 0.25f)),
+                            shape = RoundedCornerShape(16.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Row(
@@ -179,58 +191,82 @@ fun AccountsScreen(
                                 Text(
                                     text = statusBanner!!,
                                     style = MaterialTheme.typography.bodyMedium,
+                                    color = EspressoInk,
                                     modifier = Modifier.weight(1f)
                                 )
-                                TextButton(onClick = { statusBanner = null }) { Text("OK") }
+                                TextButton(onClick = { statusBanner = null }) {
+                                    Text("OK", color = CoralAccent, fontWeight = FontWeight.Bold)
+                                }
                             }
                         }
                     }
                 }
 
+                // Signature Dark Espresso Net Worth Hero Card
                 item {
-                    Card(
+                    Surface(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
-                        )
+                        shape = RoundedCornerShape(24.dp),
+                        color = if (isDark) MaterialTheme.colorScheme.surfaceContainerHigh else EspressoInk,
+                        shadowElevation = 4.dp
                     ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp)
-                        ) {
-                            Text(
-                                text = "Net Worth (${settings.baseCurrency})",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            BauhausCornerArt(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .size(width = 160.dp, height = 100.dp),
+                                darkAccent = ApricotHero.copy(alpha = 0.16f),
+                                coralAccent = CoralAccent.copy(alpha = 0.85f),
+                                apricotAccent = ApricotHero.copy(alpha = 0.7f)
                             )
-                            Text(
-                                text = FormatUtils.formatMoney(netWorth, settings.baseCurrency),
-                                style = MaterialTheme.typography.headlineMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(20.dp)
                             ) {
-                                Column {
-                                    Text("Assets", style = MaterialTheme.typography.labelMedium)
-                                    Text(
-                                        text = FormatUtils.formatMoney(assets, settings.baseCurrency),
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = IncomeGreen,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                }
-                                Column(horizontalAlignment = Alignment.End) {
-                                    Text("Liabilities", style = MaterialTheme.typography.labelMedium)
-                                    Text(
-                                        text = FormatUtils.formatMoney(liabilities, settings.baseCurrency),
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = ExpenseRed,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
+                                Text(
+                                    text = "Net Worth (${settings.baseCurrency})",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = Color.White.copy(alpha = 0.74f)
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = FormatUtils.formatMoney(netWorth, settings.baseCurrency),
+                                    style = MaterialTheme.typography.displaySmall,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.ExtraBold
+                                )
+                                Spacer(modifier = Modifier.height(14.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(24.dp)
+                                ) {
+                                    Column {
+                                        Text(
+                                            text = "Total Assets",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = Color.White.copy(alpha = 0.65f)
+                                        )
+                                        Text(
+                                            text = FormatUtils.formatMoney(assets, settings.baseCurrency),
+                                            style = MaterialTheme.typography.titleMedium,
+                                            color = IncomeGreenDark,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                    Column {
+                                        Text(
+                                            text = "Liabilities",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = Color.White.copy(alpha = 0.65f)
+                                        )
+                                        Text(
+                                            text = FormatUtils.formatMoney(liabilities, settings.baseCurrency),
+                                            style = MaterialTheme.typography.titleMedium,
+                                            color = Color(0xFFFF9B82),
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -242,8 +278,8 @@ fun AccountsScreen(
                         Text(
                             text = type.displayName,
                             style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(top = 8.dp, bottom = 2.dp)
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(top = 6.dp, bottom = 2.dp)
                         )
                     }
                     val chunkedRows = if (isWide) list.chunked(2) else list.chunked(1)
@@ -318,7 +354,13 @@ private fun AccountSummaryCard(
     modifier: Modifier = Modifier
 ) {
     val acc = item.account
-    val accent = Color(acc.colorHex)
+    val accent = when (acc.type) {
+        AccountType.E_WALLET -> CoralAccent
+        AccountType.BANK -> EspressoInk
+        AccountType.INVESTMENT -> ApricotHero
+        AccountType.CASH -> Color(0xFF2B8A6E)
+        else -> Color(acc.colorHex)
+    }
     val subtitle = buildString {
         append(acc.currency)
         if (acc.autoRechargeSourceAccountId != null) {
@@ -339,10 +381,10 @@ private fun AccountSummaryCard(
         if (!acc.includeInTotal) append(" · Excluded from Net Worth")
     }
 
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
+    SoftElevatedCard(
+        modifier = modifier.fillMaxWidth(),
+        onClick = onClick,
+        cornerRadius = 20.dp
     ) {
         Column(
             modifier = Modifier
@@ -354,29 +396,22 @@ private fun AccountSummaryCard(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(accent.copy(alpha = 0.14f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = IconCatalog.resolve(acc.iconName),
-                        contentDescription = null,
-                        tint = accent
-                    )
-                }
+                SquircleIconBadge(
+                    icon = IconCatalog.resolve(acc.iconName),
+                    tint = accent,
+                    containerColor = accent.copy(alpha = 0.13f),
+                    size = 44.dp
+                )
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = acc.name,
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Medium
+                        fontWeight = FontWeight.Bold
                     )
                     Text(
                         text = subtitle,
-                        style = MaterialTheme.typography.labelMedium,
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -398,11 +433,20 @@ private fun AccountSummaryCard(
             }
             if (acc.autoRechargeSourceAccountId != null && item.currentBalance < acc.autoRechargeMinBalance - 0.005) {
                 val srcName = accountNameMap[acc.autoRechargeSourceAccountId] ?: "Linked Bank"
-                OutlinedButton(
+                Spacer(modifier = Modifier.height(10.dp))
+                Surface(
                     onClick = { onTopUpNow(acc, srcName) },
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                    shape = RoundedCornerShape(12.dp),
+                    color = CoralSoft,
+                    border = BorderStroke(1.dp, CoralAccent.copy(alpha = 0.35f))
                 ) {
-                    Text("Top Up Now from $srcName")
+                    Text(
+                        text = "Top Up Now from $srcName",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = CoralAccent,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)
+                    )
                 }
             }
         }
@@ -465,7 +509,7 @@ private fun AccountEditorDialog(
             modifier = Modifier
                 .widthIn(max = if (isWide) 640.dp else 520.dp)
                 .fillMaxWidth(0.92f),
-            shape = RoundedCornerShape(24.dp),
+            shape = RoundedCornerShape(26.dp),
             color = MaterialTheme.colorScheme.surface,
             tonalElevation = 6.dp
         ) {
@@ -490,6 +534,7 @@ private fun AccountEditorDialog(
                         onValueChange = { name = it },
                         label = { Text("Account Name (e.g., OCBC, PayLah)") },
                         singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
                         modifier = Modifier.fillMaxWidth()
                     )
                     ExposedDropdownMenuBox(
@@ -501,6 +546,7 @@ private fun AccountEditorDialog(
                             onValueChange = {},
                             readOnly = true,
                             label = { Text("Account Type") },
+                            shape = RoundedCornerShape(14.dp),
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(typeExpanded) },
                             modifier = Modifier
                                 .menuAnchor(MenuAnchorType.PrimaryNotEditable)
@@ -525,6 +571,7 @@ private fun AccountEditorDialog(
                             label = { Text(if (initial == null) "Initial Balance" else "Current Balance") },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
                             singleLine = true,
+                            shape = RoundedCornerShape(14.dp),
                             modifier = Modifier.weight(1.4f)
                         )
                         CurrencyDropdown(
@@ -544,6 +591,7 @@ private fun AccountEditorDialog(
                                 onValueChange = {},
                                 readOnly = true,
                                 label = { Text("Auto-Recharge From Bank (if wallet < 0)") },
+                                shape = RoundedCornerShape(14.dp),
                                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(rechargeExpanded) },
                                 modifier = Modifier
                                     .menuAnchor(MenuAnchorType.PrimaryNotEditable)
@@ -579,6 +627,7 @@ private fun AccountEditorDialog(
                             onValueChange = { marketSymbol = it },
                             label = { Text("Live Price Ticker (e.g. XAU_GRAM for Gold, ES3.SI, SPY)") },
                             singleLine = true,
+                            shape = RoundedCornerShape(14.dp),
                             modifier = Modifier.fillMaxWidth()
                         )
                         OutlinedTextField(
@@ -587,6 +636,7 @@ private fun AccountEditorDialog(
                             label = { Text("Units / Shares / Gold Grams (for live sync)") },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             singleLine = true,
+                            shape = RoundedCornerShape(14.dp),
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
@@ -624,7 +674,8 @@ private fun AccountEditorDialog(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         TextButton(onClick = onDismiss) { Text("Cancel") }
                         Spacer(modifier = Modifier.width(8.dp))
-                        Button(
+                        EspressoPillButton(
+                            text = "Save",
                             enabled = name.isNotBlank(),
                             onClick = {
                                 val targetBal = balanceText.toDoubleOrNull() ?: 0.0
@@ -638,7 +689,7 @@ private fun AccountEditorDialog(
                                         currency = currency.uppercase(),
                                         initialBalance = initial?.initialBalance ?: targetBal,
                                         iconName = initial?.iconName ?: defaultIcon,
-                                        colorHex = initial?.colorHex ?: 0xFF0D6E52L,
+                                        colorHex = initial?.colorHex ?: 0xFFF05A30L,
                                         includeInTotal = includeInTotal,
                                         isArchived = false,
                                         createdAt = initial?.createdAt ?: System.currentTimeMillis(),
@@ -656,7 +707,7 @@ private fun AccountEditorDialog(
                                     targetBal
                                 )
                             }
-                        ) { Text("Save") }
+                        )
                     }
                 }
             }
@@ -678,6 +729,7 @@ private fun AccountEditorDialog(
                             showRemoveConfirm = false
                             onArchive(initial)
                         },
+                        shape = RoundedCornerShape(14.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text("Hide Account (Archive & Keep History)")
@@ -687,6 +739,7 @@ private fun AccountEditorDialog(
                             containerColor = MaterialTheme.colorScheme.error,
                             contentColor = MaterialTheme.colorScheme.onError
                         ),
+                        shape = RoundedCornerShape(14.dp),
                         onClick = {
                             showRemoveConfirm = false
                             onDeletePermanently(initial)

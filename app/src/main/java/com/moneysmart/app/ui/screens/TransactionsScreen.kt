@@ -1,6 +1,7 @@
 package com.moneysmart.app.ui.screens
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -8,6 +9,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -15,9 +17,9 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -41,23 +43,14 @@ import androidx.compose.material.icons.rounded.ViewAgenda
 import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -69,6 +62,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -88,13 +82,22 @@ import com.moneysmart.app.ui.components.EmptyStateCard
 import com.moneysmart.app.ui.components.LabeledActionButton
 import com.moneysmart.app.ui.components.MonthSelectorBar
 import com.moneysmart.app.ui.components.ResponsiveContentBox
+import com.moneysmart.app.ui.components.SoftElevatedCard
 import com.moneysmart.app.ui.components.TopBarAddButton
 import com.moneysmart.app.ui.components.TransactionRow
+import com.moneysmart.app.ui.components.WarmCurvedHeroHeader
+import com.moneysmart.app.ui.components.WarmSegmentedPillBar
 import com.moneysmart.app.ui.components.rememberIsWideScreen
+import com.moneysmart.app.ui.theme.CoralAccent
+import com.moneysmart.app.ui.theme.CoralSoft
+import com.moneysmart.app.ui.theme.EspressoInk
 import com.moneysmart.app.ui.theme.ExpenseRed
 import com.moneysmart.app.ui.theme.ExpenseRedDark
 import com.moneysmart.app.ui.theme.IncomeGreen
 import com.moneysmart.app.ui.theme.IncomeGreenDark
+import com.moneysmart.app.ui.theme.PeachSoft
+import com.moneysmart.app.ui.theme.PeachTint
+import com.moneysmart.app.ui.theme.TrackBeige
 import com.moneysmart.app.ui.theme.WarningAmber
 import com.moneysmart.app.ui.viewmodel.MoneySmartViewModel
 import com.moneysmart.app.util.FormatUtils
@@ -109,7 +112,6 @@ private enum class LedgerViewMode(val label: String) {
     CALENDAR("Calendar")
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TransactionsScreen(
     viewModel: MoneySmartViewModel,
@@ -219,28 +221,43 @@ fun TransactionsScreen(
         filteredMonthTransactions.any { it.id in selectedIds && it.needsReview }
     }
 
-    Scaffold(
-        topBar = {
-            if (selectionMode) {
-                TopAppBar(
-                    title = {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        if (selectionMode) {
+            Surface(
+                color = EspressoInk,
+                contentColor = Color.White,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = { exitSelectionMode() }) {
+                            Icon(Icons.Rounded.Close, contentDescription = "Cancel selection", tint = Color.White)
+                        }
                         Text(
                             text = "${selectedIds.size} selected",
-                            fontWeight = FontWeight.SemiBold
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
                         )
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = { exitSelectionMode() }) {
-                            Icon(Icons.Rounded.Close, contentDescription = "Cancel selection")
-                        }
-                    },
-                    actions = {
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         if (selectableIds.isNotEmpty()) {
                             IconButton(onClick = {
                                 val allSelected = selectableIds.all { it in selectedIds }
                                 selectedIds = if (allSelected) emptySet() else selectableIds.toSet()
                             }) {
-                                Icon(Icons.Rounded.SelectAll, contentDescription = "Select all")
+                                Icon(Icons.Rounded.SelectAll, contentDescription = "Select all", tint = Color.White)
                             }
                         }
                         if (hasSelectedNeedsReview && selectedIds.isNotEmpty()) {
@@ -248,7 +265,7 @@ fun TransactionsScreen(
                                 viewModel.markTransactionsReviewed(selectedIds.toList())
                                 exitSelectionMode()
                             }) {
-                                Icon(Icons.Rounded.DoneAll, contentDescription = "Mark reviewed")
+                                Icon(Icons.Rounded.DoneAll, contentDescription = "Mark reviewed", tint = Color.White)
                             }
                         }
                         IconButton(
@@ -258,69 +275,57 @@ fun TransactionsScreen(
                             Icon(
                                 imageVector = Icons.Rounded.Delete,
                                 contentDescription = "Delete selected",
-                                tint = if (selectedIds.isNotEmpty()) {
-                                    MaterialTheme.colorScheme.error
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                                }
+                                tint = if (selectedIds.isNotEmpty()) CoralAccent else Color.White.copy(alpha = 0.4f)
                             )
                         }
                     }
-                )
-            } else {
-                TopAppBar(
-                    title = {
-                        Column {
-                            Text("Money Smart", fontWeight = FontWeight.Bold)
-                            Text(
-                                text = if (isListenerEnabled && settings.geminiApiKey.isNotBlank()) {
-                                    "AI auto-capture active (${settings.allowedPackages.size} apps)"
-                                } else {
-                                    "AI capture setup needed"
-                                },
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    },
-                    actions = {
-                        if (viewMode != LedgerViewMode.MONTHLY && filteredMonthTransactions.isNotEmpty()) {
-                            LabeledActionButton(
-                                icon = Icons.Rounded.Checklist,
-                                label = "Select",
-                                onClick = { selectionMode = true }
-                            )
-                        }
-                        LabeledActionButton(
-                            icon = if (searchVisible) Icons.Rounded.Close else Icons.Rounded.Search,
-                            label = if (searchVisible) "Close" else "Search",
-                            onClick = { searchVisible = !searchVisible }
-                        )
-                        LabeledActionButton(
-                            icon = Icons.Rounded.AutoAwesome,
-                            label = "AI Setup",
-                            tint = if (isListenerEnabled && settings.geminiApiKey.isNotBlank()) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                WarningAmber
-                            },
-                            onClick = onOpenAiActivity
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        TopBarAddButton(
-                            label = "Add",
-                            onClick = onAddTransaction,
-                            modifier = Modifier.padding(end = 10.dp)
-                        )
-                    }
-                )
+                }
             }
+        } else {
+            WarmCurvedHeroHeader(
+                title = "Money Smart",
+                subtitle = if (isListenerEnabled && settings.geminiApiKey.isNotBlank()) {
+                    "AI auto-capture active (${settings.allowedPackages.size} apps)"
+                } else {
+                    "AI capture setup needed"
+                },
+                heroColor = PeachSoft,
+                maxWidth = if (isWide) 1040.dp else 940.dp,
+                actions = {
+                    if (viewMode != LedgerViewMode.MONTHLY && filteredMonthTransactions.isNotEmpty()) {
+                        LabeledActionButton(
+                            icon = Icons.Rounded.Checklist,
+                            label = "Select",
+                            onClick = { selectionMode = true }
+                        )
+                    }
+                    LabeledActionButton(
+                        icon = if (searchVisible) Icons.Rounded.Close else Icons.Rounded.Search,
+                        label = if (searchVisible) "Close" else "Search",
+                        onClick = { searchVisible = !searchVisible }
+                    )
+                    LabeledActionButton(
+                        icon = Icons.Rounded.AutoAwesome,
+                        label = "AI Setup",
+                        tint = if (isListenerEnabled && settings.geminiApiKey.isNotBlank()) {
+                            IncomeGreen
+                        } else {
+                            CoralAccent
+                        },
+                        onClick = onOpenAiActivity
+                    )
+                    TopBarAddButton(
+                        label = "Add",
+                        onClick = onAddTransaction
+                    )
+                }
+            )
         }
-    ) { innerPadding ->
+
         ResponsiveContentBox(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
+                .fillMaxWidth()
+                .weight(1f),
             maxWidth = if (isWide) 1040.dp else 940.dp
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
@@ -330,9 +335,10 @@ fun TransactionsScreen(
                         onValueChange = { searchQuery = it },
                         placeholder = { Text("Search merchant, category, account, note...") },
                         singleLine = true,
+                        shape = RoundedCornerShape(16.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 6.dp)
+                            .padding(horizontal = 16.dp, vertical = 4.dp)
                     )
                 }
 
@@ -371,29 +377,21 @@ fun TransactionsScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = if (isWide) 4.dp else 6.dp),
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    SingleChoiceSegmentedButtonRow(modifier = Modifier.weight(1f)) {
-                        LedgerViewMode.entries.forEachIndexed { index, mode ->
-                            SegmentedButton(
-                                selected = viewMode == mode,
-                                onClick = { viewMode = mode },
-                                shape = SegmentedButtonDefaults.itemShape(index, LedgerViewMode.entries.size),
-                                icon = {
-                                    val icon = when (mode) {
-                                        LedgerViewMode.DAILY -> Icons.AutoMirrored.Rounded.ViewList
-                                        LedgerViewMode.MONTHLY -> Icons.Rounded.ViewAgenda
-                                        LedgerViewMode.CALENDAR -> Icons.Rounded.CalendarMonth
-                                    }
-                                    Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp))
-                                }
-                            ) {
-                                Text(mode.label, maxLines = 1, fontSize = 13.sp)
-                            }
-                        }
-                    }
+                    WarmSegmentedPillBar(
+                        options = LedgerViewMode.entries.map { it.label },
+                        icons = listOf(
+                            Icons.AutoMirrored.Rounded.ViewList,
+                            Icons.Rounded.ViewAgenda,
+                            Icons.Rounded.CalendarMonth
+                        ),
+                        selectedIndex = viewMode.ordinal,
+                        onSelect = { idx -> viewMode = LedgerViewMode.entries[idx] },
+                        modifier = Modifier.weight(1f)
+                    )
 
                     if (needsReviewCount > 0) {
                         Spacer(modifier = Modifier.width(8.dp))
@@ -504,31 +502,33 @@ private fun SetupPromptBanner(
     }
     if (message.isBlank()) return
 
-    Card(
+    val isDark = isSystemInDarkTheme()
+    Surface(
+        onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp)
-            .clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-        )
+            .padding(horizontal = 16.dp, vertical = 3.dp),
+        shape = RoundedCornerShape(16.dp),
+        color = if (isDark) MaterialTheme.colorScheme.surfaceContainer else PeachTint,
+        border = BorderStroke(1.dp, CoralAccent.copy(alpha = 0.25f))
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 6.dp),
+                .padding(horizontal = 12.dp, vertical = 5.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
                 imageVector = Icons.Rounded.NotificationsActive,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
+                tint = CoralAccent,
                 modifier = Modifier.size(18.dp)
             )
             Spacer(modifier = Modifier.width(10.dp))
             Text(
                 text = message,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Medium,
                 modifier = Modifier.weight(1f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -537,16 +537,16 @@ private fun SetupPromptBanner(
                 onClick = onClick,
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
             ) {
-                Text(if (!hasKey) "Open Settings" else "Setup Now")
+                Text(if (!hasKey) "Open Settings" else "Setup Now", color = CoralAccent, fontWeight = FontWeight.Bold)
             }
             IconButton(
                 onClick = onDismiss,
-                modifier = Modifier.size(30.dp)
+                modifier = Modifier.size(28.dp)
             ) {
                 Icon(
                     imageVector = Icons.Rounded.Close,
                     contentDescription = "Dismiss setup banner",
-                    modifier = Modifier.size(16.dp)
+                    modifier = Modifier.size(15.dp)
                 )
             }
         }
@@ -567,46 +567,60 @@ private fun WideMonthAndSummaryBar(
     val expenseColor = if (isDark) ExpenseRedDark else ExpenseRed
     val net = income - expense
 
-    Surface(
+    SoftElevatedCard(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp)
-            .border(
-                width = 1.dp,
-                color = MaterialTheme.colorScheme.outlineVariant,
-                shape = RoundedCornerShape(14.dp)
-            ),
-        shape = RoundedCornerShape(14.dp),
-        color = MaterialTheme.colorScheme.surface
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        cornerRadius = 18.dp
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+                .padding(horizontal = 12.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onPreviousMonth, modifier = Modifier.size(36.dp)) {
+                IconButton(onClick = onPreviousMonth, modifier = Modifier.size(34.dp)) {
                     Icon(Icons.Rounded.ChevronLeft, contentDescription = "Previous month")
                 }
                 Text(
                     text = FormatUtils.formatYearMonth(yearMonth),
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
+                    fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(horizontal = 6.dp)
                 )
-                IconButton(onClick = onNextMonth, modifier = Modifier.size(36.dp)) {
+                IconButton(onClick = onNextMonth, modifier = Modifier.size(34.dp)) {
                     Icon(Icons.Rounded.ChevronRight, contentDescription = "Next month")
                 }
             }
             Row(
-                horizontalArrangement = Arrangement.spacedBy(28.dp),
+                horizontalArrangement = Arrangement.spacedBy(20.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 SummaryMetric("Income", FormatUtils.formatMoney(income, baseCurrency), incomeColor)
                 SummaryMetric("Expenses", FormatUtils.formatMoney(expense, baseCurrency), expenseColor)
-                SummaryMetric("Net", FormatUtils.formatMoney(net, baseCurrency), MaterialTheme.colorScheme.onSurface)
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (isDark) MaterialTheme.colorScheme.surfaceContainerHigh else EspressoInk
+                ) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                        horizontalAlignment = Alignment.End
+                    ) {
+                        Text(
+                            text = "Net",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White.copy(alpha = 0.72f)
+                        )
+                        Text(
+                            text = FormatUtils.formatMoney(net, baseCurrency),
+                            style = MaterialTheme.typography.titleSmall,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
             }
         }
     }
@@ -623,15 +637,18 @@ private fun SummaryStrip(
     val expenseColor = if (isDark) ExpenseRedDark else ExpenseRed
     val net = income - expense
 
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surface
+    SoftElevatedCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        cornerRadius = 18.dp
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
         ) {
             SummaryMetric("Income", FormatUtils.formatMoney(income, baseCurrency), incomeColor)
             SummaryMetric("Expenses", FormatUtils.formatMoney(expense, baseCurrency), expenseColor)
@@ -641,16 +658,16 @@ private fun SummaryStrip(
 }
 
 @Composable
-private fun SummaryMetric(label: String, value: String, color: androidx.compose.ui.graphics.Color) {
+private fun SummaryMetric(label: String, value: String, color: Color) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             text = label,
-            style = MaterialTheme.typography.labelMedium,
+            style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Text(
             text = value,
-            style = MaterialTheme.typography.titleMedium,
+            style = MaterialTheme.typography.titleSmall,
             color = color,
             fontWeight = FontWeight.Bold
         )
@@ -687,43 +704,39 @@ private fun DailyTransactionsList(
     }
 
     LazyColumn(
-        contentPadding = PaddingValues(bottom = 24.dp)
+        contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp)
     ) {
         grouped.forEach { (date, dayTxs) ->
             val dayIncome = dayTxs.sumOf { LedgerCalculations.effectiveIncomeBaseAmount(it) }
             val dayExpense = dayTxs.sumOf { LedgerCalculations.effectiveExpenseBaseAmount(it) }
             item(key = "header_$date") {
-                Surface(
-                    color = MaterialTheme.colorScheme.surfaceContainer,
-                    modifier = Modifier.fillMaxWidth()
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = FormatUtils.formatDayHeader(dayTxs.first().timestamp, zoneId),
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            if (dayIncome > 0) {
-                                Text(
-                                    text = "+${FormatUtils.formatMoney(dayIncome, baseCurrency)}",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = IncomeGreen
-                                )
-                            }
-                            if (dayExpense > 0) {
-                                Text(
-                                    text = "-${FormatUtils.formatMoney(dayExpense, baseCurrency)}",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = ExpenseRed
-                                )
-                            }
+                    Text(
+                        text = FormatUtils.formatDayHeader(dayTxs.first().timestamp, zoneId),
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        if (dayIncome > 0) {
+                            Text(
+                                text = "+${FormatUtils.formatMoney(dayIncome, baseCurrency)}",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = IncomeGreen
+                            )
+                        }
+                        if (dayExpense > 0) {
+                            Text(
+                                text = "-${FormatUtils.formatMoney(dayExpense, baseCurrency)}",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = ExpenseRed
+                            )
                         }
                     }
                 }
@@ -739,10 +752,6 @@ private fun DailyTransactionsList(
                     selectionMode = selectionMode,
                     isSelected = tx.id in selectedIds,
                     onLongClick = { onRowLongClick(tx.id) }
-                )
-                HorizontalDivider(
-                    modifier = Modifier.padding(start = 70.dp),
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
                 )
             }
         }
@@ -769,7 +778,9 @@ private fun MonthlyOverviewList(
     ) {
         items(monthRows) { rowMonths ->
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(IntrinsicSize.Max),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 rowMonths.forEach { ym ->
@@ -779,19 +790,16 @@ private fun MonthlyOverviewList(
                     val exp = monthTxs.sumOf { LedgerCalculations.effectiveExpenseBaseAmount(it) }
                     val net = inc - exp
 
-                    Card(
+                    SoftElevatedCard(
+                        onClick = { onSelectMonth(ym) },
                         modifier = Modifier
                             .weight(1f)
-                            .clickable { onSelectMonth(ym) },
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        border = androidx.compose.foundation.BorderStroke(
-                            1.dp,
-                            MaterialTheme.colorScheme.outlineVariant
-                        )
+                            .fillMaxHeight(),
+                        cornerRadius = 18.dp
                     ) {
                         Row(
                             modifier = Modifier
-                                .fillMaxWidth()
+                                .fillMaxSize()
                                 .padding(14.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
@@ -800,11 +808,11 @@ private fun MonthlyOverviewList(
                                 Text(
                                     text = FormatUtils.formatYearMonth(ym),
                                     style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.SemiBold
+                                    fontWeight = FontWeight.Bold
                                 )
                                 Text(
                                     text = "${monthTxs.size} transactions",
-                                    style = MaterialTheme.typography.labelMedium,
+                                    style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
@@ -853,6 +861,7 @@ private fun CalendarTransactionsView(
     onRowClick: (Long) -> Unit,
     onRowLongClick: (Long) -> Unit
 ) {
+    val isDark = isSystemInDarkTheme()
     val byDate = remember(monthTransactions, zoneId) {
         monthTransactions.groupBy {
             Instant.ofEpochMilli(it.timestamp).atZone(zoneId).toLocalDate()
@@ -877,7 +886,7 @@ private fun CalendarTransactionsView(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 2.dp)
+                    .padding(bottom = 3.dp)
             ) {
                 listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat").forEach { dayName ->
                     Text(
@@ -903,22 +912,26 @@ private fun CalendarTransactionsView(
                             val dayExp = dayTxs.sumOf { LedgerCalculations.effectiveExpenseBaseAmount(it) }
                             val dayInc = dayTxs.sumOf { LedgerCalculations.effectiveIncomeBaseAmount(it) }
                             val isSelected = date == selectedDate
+                            val cellBg = when {
+                                isSelected && isDark -> CoralAccent
+                                isSelected -> EspressoInk
+                                else -> MaterialTheme.colorScheme.surface
+                            }
+                            val numColor = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
+                            val incColor = if (isSelected) Color(0xFF9DF0D2) else IncomeGreen
+                            val expColor = if (isSelected) Color(0xFFFFB49E) else ExpenseRed
 
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
                                     .height(cellHeight)
                                     .padding(1.5.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(
-                                        if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.75f)
-                                        else MaterialTheme.colorScheme.surface
-                                    )
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(cellBg)
                                     .border(
-                                        width = if (isSelected) 1.5.dp else 0.75.dp,
-                                        color = if (isSelected) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.outlineVariant,
-                                        shape = RoundedCornerShape(8.dp)
+                                        width = if (isSelected) 0.dp else 0.75.dp,
+                                        color = if (isSelected) Color.Transparent else MaterialTheme.colorScheme.outlineVariant,
+                                        shape = RoundedCornerShape(10.dp)
                                     )
                                     .clickable { onSelectDate(date) }
                                     .padding(horizontal = 3.dp, vertical = 2.dp)
@@ -932,7 +945,8 @@ private fun CalendarTransactionsView(
                                         text = dayNum.toString(),
                                         fontSize = 12.5.sp,
                                         lineHeight = 14.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                        color = numColor,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold
                                     )
                                     if (isWide) {
                                         Row(
@@ -945,7 +959,7 @@ private fun CalendarTransactionsView(
                                                     fontSize = 10.sp,
                                                     lineHeight = 12.sp,
                                                     fontWeight = FontWeight.SemiBold,
-                                                    color = IncomeGreen,
+                                                    color = incColor,
                                                     maxLines = 1,
                                                     overflow = TextOverflow.Clip
                                                 )
@@ -956,7 +970,7 @@ private fun CalendarTransactionsView(
                                                     fontSize = 10.sp,
                                                     lineHeight = 12.sp,
                                                     fontWeight = FontWeight.SemiBold,
-                                                    color = ExpenseRed,
+                                                    color = expColor,
                                                     maxLines = 1,
                                                     overflow = TextOverflow.Clip
                                                 )
@@ -970,7 +984,7 @@ private fun CalendarTransactionsView(
                                                     fontSize = 10.sp,
                                                     lineHeight = 11.sp,
                                                     fontWeight = FontWeight.SemiBold,
-                                                    color = IncomeGreen,
+                                                    color = incColor,
                                                     maxLines = 1,
                                                     overflow = TextOverflow.Clip
                                                 )
@@ -981,7 +995,7 @@ private fun CalendarTransactionsView(
                                                     fontSize = 10.sp,
                                                     lineHeight = 11.sp,
                                                     fontWeight = FontWeight.SemiBold,
-                                                    color = ExpenseRed,
+                                                    color = expColor,
                                                     maxLines = 1,
                                                     overflow = TextOverflow.Clip
                                                 )
@@ -1023,26 +1037,27 @@ private fun CalendarTransactionsView(
                 contentPadding = PaddingValues(bottom = 24.dp)
             ) {
                 item {
-                    Surface(
-                        color = MaterialTheme.colorScheme.surfaceContainer,
-                        modifier = Modifier.fillMaxWidth()
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 10.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                        Text(
+                            text = selectedDayLabel,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = TrackBeige
                         ) {
-                            Text(
-                                text = selectedDayLabel,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
                             Text(
                                 text = "${selectedDayTransactions.size} item(s)",
                                 style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = EspressoInk,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                             )
                         }
                     }
@@ -1069,10 +1084,6 @@ private fun CalendarTransactionsView(
                             isSelected = tx.id in selectedIds,
                             onLongClick = { onRowLongClick(tx.id) }
                         )
-                        HorizontalDivider(
-                            modifier = Modifier.padding(start = 70.dp),
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
-                        )
                     }
                 }
             }
@@ -1081,7 +1092,7 @@ private fun CalendarTransactionsView(
         LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
             item {
                 CalendarGridBlock()
-                HorizontalDivider(modifier = Modifier.padding(top = 8.dp))
+                Spacer(modifier = Modifier.height(6.dp))
             }
 
             if (selectedDayTransactions.isEmpty()) {
