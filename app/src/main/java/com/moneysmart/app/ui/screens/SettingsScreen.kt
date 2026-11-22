@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -46,6 +47,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.moneysmart.app.BuildConfig
@@ -179,7 +181,10 @@ fun SettingsScreen(
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             EspressoPillButton(
                                 text = "Save Key",
                                 onClick = {
@@ -190,7 +195,7 @@ fun SettingsScreen(
                             )
                             OutlinedButton(
                                 enabled = !isTestingApi,
-                                shape = RoundedCornerShape(999.dp),
+                                shape = RoundedCornerShape(18.dp),
                                 onClick = {
                                     isTestingApi = true
                                     apiTestMessage = null
@@ -204,9 +209,16 @@ fun SettingsScreen(
                                         isTestingApi = false
                                     }
                                 },
-                                modifier = Modifier.weight(1f)
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(48.dp)
                             ) {
-                                Text(if (isTestingApi) "Testing..." else "Test Connection")
+                                Text(
+                                    text = if (isTestingApi) "Testing..." else "Test Connection",
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis
+                                )
                             }
                         }
                         OutlinedButton(
@@ -468,7 +480,10 @@ fun SettingsScreen(
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             EspressoPillButton(
                                 text = if (updateChecking) "Checking..." else "Check for Updates",
                                 enabled = !updateChecking,
@@ -487,13 +502,19 @@ fun SettingsScreen(
                                 modifier = Modifier.weight(1f)
                             )
                             OutlinedButton(
-                                shape = RoundedCornerShape(999.dp),
+                                shape = RoundedCornerShape(18.dp),
                                 onClick = {
                                     val url = updateInfo?.releasePageUrl ?: AppUpdateChecker.FALLBACK_RELEASE_URL
                                     AppUpdateChecker.openUrl(context, url)
-                                }
+                                },
+                                modifier = Modifier.height(48.dp)
                             ) {
-                                Text("Releases Page")
+                                Text(
+                                    text = "Releases Page",
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis
+                                )
                             }
                         }
                         if (updateError != null) {

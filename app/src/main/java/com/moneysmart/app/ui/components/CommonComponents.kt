@@ -49,6 +49,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
@@ -409,7 +410,7 @@ fun EspressoPillButton(
             disabledContainerColor = TrackBeige,
             disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
         ),
-        contentPadding = PaddingValues(horizontal = 20.dp)
+        contentPadding = PaddingValues(horizontal = 14.dp)
     ) {
         if (icon != null) {
             Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -418,7 +419,10 @@ fun EspressoPillButton(
         Text(
             text = text,
             style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.SemiBold
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
@@ -524,12 +528,17 @@ fun SoftElevatedCard(
 ) {
     val shape = RoundedCornerShape(cornerRadius)
     val border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    val resolvedColor = if (containerColor.alpha < 1f) {
+        containerColor.compositeOver(MaterialTheme.colorScheme.surface)
+    } else {
+        containerColor
+    }
     if (onClick != null) {
         Surface(
             onClick = onClick,
             modifier = modifier,
             shape = shape,
-            color = containerColor,
+            color = resolvedColor,
             shadowElevation = 1.dp,
             border = border
         ) {
@@ -539,7 +548,7 @@ fun SoftElevatedCard(
         Surface(
             modifier = modifier,
             shape = shape,
-            color = containerColor,
+            color = resolvedColor,
             shadowElevation = 1.dp,
             border = border
         ) {

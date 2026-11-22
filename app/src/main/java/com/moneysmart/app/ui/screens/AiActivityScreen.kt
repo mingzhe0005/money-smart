@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -43,6 +44,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -186,7 +188,10 @@ fun AiActivityScreen(
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 EspressoPillButton(
                                     text = if (isListenerEnabled) "System Access" else "Enable Access",
                                     onClick = {
@@ -196,13 +201,21 @@ fun AiActivityScreen(
                                 )
                                 OutlinedButton(
                                     onClick = onOpenAllowlist,
-                                    shape = RoundedCornerShape(999.dp),
+                                    shape = RoundedCornerShape(18.dp),
                                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-                                    modifier = Modifier.weight(1f)
+                                    contentPadding = PaddingValues(horizontal = 12.dp),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(48.dp)
                                 ) {
                                     Icon(Icons.Rounded.Apps, contentDescription = null)
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Apps (${settings.allowedPackages.size})")
+                                    Text(
+                                        text = "Apps (${settings.allowedPackages.size})",
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
                                 }
                             }
                             if (settings.geminiApiKey.isBlank()) {
@@ -274,11 +287,15 @@ fun AiActivityScreen(
                                 shape = RoundedCornerShape(14.dp),
                                 modifier = Modifier.fillMaxWidth()
                             )
-                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 OutlinedButton(
                                     enabled = !simRunning,
-                                    shape = RoundedCornerShape(999.dp),
+                                    shape = RoundedCornerShape(18.dp),
                                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                                    contentPadding = PaddingValues(horizontal = 12.dp),
                                     onClick = {
                                         simRunning = true
                                         simResultText = null
@@ -298,12 +315,19 @@ fun AiActivityScreen(
                                             simRunning = false
                                         }
                                     },
-                                    modifier = Modifier.weight(1f)
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(48.dp)
                                 ) {
-                                    Text("Preview Parse")
+                                    Text(
+                                        text = "Preview Parse",
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
                                 }
                                 EspressoPillButton(
-                                    text = "Simulate & Record",
+                                    text = "Test & Record",
                                     enabled = !simRunning,
                                     onClick = {
                                         simRunning = true
