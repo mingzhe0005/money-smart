@@ -12,6 +12,13 @@ import kotlin.math.roundToLong
 object LedgerCalculations {
 
     const val DEFAULT_DEDUP_WINDOW_MILLIS = 120_000L
+    const val CROSS_APP_MERCHANT_DEDUP_WINDOW_MILLIS = 900_000L
+
+    private val DEDUP_STOPWORDS = setOf(
+        "debit", "credit", "card", "payment", "purchase", "singapore",
+        "wallet", "bank", "transfer", "online", "charged",
+        "frank", "ocbc", "dbs", "posb", "uob", "samsung"
+    )
 
     fun computeBaseAmount(amount: Double, exchangeRateToBase: Double): Double {
         val raw = amount * exchangeRateToBase
@@ -112,18 +119,54 @@ object LedgerCalculations {
         return (calibrated * 100.0).roundToLong() / 100.0
     }
 
+    private fun normalizeMerchantForDedup(raw: String?): String {
+        return raw.orEmpty()
+            .lowercase()
+            .replace(Regex("[^a-z0-9]+"), " ")
+            .trim()
+    }
+
+    fun merchantsMatchForDedup(a: String?, b: String?): Boolean {
+        val normA = normalizeMerchantForDedup(a)
+        val normB = normalizeMerchantForDedup(b)
+        if (normA.isBlank() || normB.isBlank()) return false
+        if (normA == normB) return true
+
+        val shorter = if (normA.length <= normB.length) normA else normB
+        val longer = if (normA.length <= normB.length) normB else normA
+        if (shorter.length >= 4 && (longer.startsWith(shorter) || longer.contains(shorter))) {
+            return true
+        }
+
+        val tokensA = normA.split(' ').filter { it.length >= 4 && it !in DEDUP_STOPWORDS }.toSet()
+        val tokensB = normB.split(' ').filter { it.length >= 4 && it !in DEDUP_STOPWORDS }.toSet()
+        return tokensA.isNotEmpty() && tokensA.any { it in tokensB }
+    }
+
     fun findDuplicateTransaction(
         existing: List<TransactionEntity>,
         amount: Double,
         currency: String,
         timestamp: Long,
-        windowMillis: Long = DEFAULT_DEDUP_WINDOW_MILLIS
+        windowMillis: Long = DEFAULT_DEDUP_WINDOW_MILLIS,
+        type: TransactionType? = null,
+        merchant: String? = null,
+        crossAppMerchantWindowMillis: Long = CROSS_APP_MERCHANT_DEDUP_WINDOW_MILLIS,
+        isDifferentSourceApp: (TransactionEntity) -> Boolean = { false }
     ): TransactionEntity? {
         return existing.firstOrNull { tx ->
-            !tx.isDeleted &&
-                abs(tx.amount - amount) < 0.005 &&
-                tx.currency.equals(currency, ignoreCase = true) &&
-                abs(tx.timestamp - timestamp) <= windowMillis
+            if (tx.isDeleted ||
+                abs(tx.amount - amount) >= 0.005 ||
+                !tx.currency.equals(currency, ignoreCase = true) ||
+                (type != null && tx.type != type)
+            ) {
+                return@firstOrNull false
+            }
+            val diffMillis = abs(tx.timestamp - timestamp)
+            diffMillis <= windowMillis ||
+                (diffMillis <= crossAppMerchantWindowMillis &&
+                    isDifferentSourceApp(tx) &&
+                    merchantsMatchForDedup(tx.merchant, merchant))
         }
     }
 

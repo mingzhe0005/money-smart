@@ -102,4 +102,85 @@ class LedgerAndDedupTest {
         )
         assertNull(deletedNotMatched)
     }
+
+    @Test
+    fun crossAppMerchantDeduplicationCatchesDelayedBankAlertAfterWalletTap() {
+        val tapTime = 1_700_000_000_000L
+        val existing = listOf(
+            TransactionEntity(
+                id = 20L,
+                type = TransactionType.EXPENSE,
+                amount = 6.40,
+                currency = "SGD",
+                baseAmount = 6.40,
+                accountId = 2L,
+                merchant = "PLAYMADE - JURONG POINT",
+                timestamp = tapTime,
+                rawNotificationId = 100L
+            )
+        )
+        val sourcePackages = mapOf(20L to "com.samsung.android.spay")
+
+        // OCBC alert arrives 1 minute later with truncated merchant name
+        val ocbc1MinLater = LedgerCalculations.findDuplicateTransaction(
+            existing = existing,
+            amount = 6.40,
+            currency = "SGD",
+            timestamp = tapTime + 60_000L,
+            type = TransactionType.EXPENSE,
+            merchant = "PLAYMADE - J...",
+            isDifferentSourceApp = { tx -> sourcePackages[tx.id] != "com.ocbc.mobile" }
+        )
+        assertNotNull(ocbc1MinLater)
+        assertEquals(20L, ocbc1MinLater!!.id)
+
+        // OCBC alert arrives 6 minutes later (outside 2-min window, inside 15-min cross-app merchant window)
+        val ocbc6MinLater = LedgerCalculations.findDuplicateTransaction(
+            existing = existing,
+            amount = 6.40,
+            currency = "SGD",
+            timestamp = tapTime + 360_000L,
+            type = TransactionType.EXPENSE,
+            merchant = "PLAYMADE - J...",
+            isDifferentSourceApp = { tx -> sourcePackages[tx.id] != "com.ocbc.mobile" }
+        )
+        assertNotNull(ocbc6MinLater)
+        assertEquals(20L, ocbc6MinLater!!.id)
+
+        // Same app 6 minutes later -> keep as separate transaction (e.g., buying a second drink)
+        val sameAppLater = LedgerCalculations.findDuplicateTransaction(
+            existing = existing,
+            amount = 6.40,
+            currency = "SGD",
+            timestamp = tapTime + 360_000L,
+            type = TransactionType.EXPENSE,
+            merchant = "PLAYMADE - JURONG POINT",
+            isDifferentSourceApp = { tx -> sourcePackages[tx.id] != "com.samsung.android.spay" }
+        )
+        assertNull(sameAppLater)
+
+        // Different merchant from another app 6 minutes later -> keep as separate transaction
+        val differentMerchant = LedgerCalculations.findDuplicateTransaction(
+            existing = existing,
+            amount = 6.40,
+            currency = "SGD",
+            timestamp = tapTime + 360_000L,
+            type = TransactionType.EXPENSE,
+            merchant = "7-ELEVEN",
+            isDifferentSourceApp = { tx -> sourcePackages[tx.id] != "com.ocbc.mobile" }
+        )
+        assertNull(differentMerchant)
+
+        // Different transaction type (e.g., INCOME refund/repayment) 30 seconds later -> keep separate
+        val differentType = LedgerCalculations.findDuplicateTransaction(
+            existing = existing,
+            amount = 6.40,
+            currency = "SGD",
+            timestamp = tapTime + 30_000L,
+            type = TransactionType.INCOME,
+            merchant = "PLAYMADE - JURONG POINT",
+            isDifferentSourceApp = { tx -> sourcePackages[tx.id] != "com.ocbc.mobile" }
+        )
+        assertNull(differentType)
+    }
 }

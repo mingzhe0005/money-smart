@@ -15,6 +15,8 @@ import com.moneysmart.app.data.remote.GeminiTransientException
 import com.moneysmart.app.data.repository.HabitLearningEngine
 import com.moneysmart.app.data.repository.LedgerCalculations
 import com.moneysmart.app.data.repository.MoneyRepository
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 sealed class ProcessOutcome {
     data class Recorded(val transactionId: Long, val needsReview: Boolean, val summary: String) : ProcessOutcome()
@@ -30,6 +32,7 @@ class NotificationProcessor(
     private val settingsDataStore: SettingsDataStore,
     private val geminiApiClient: GeminiApiClient
 ) {
+    private val recordMutex = Mutex()
     suspend fun simulateParse(
         appName: String,
         title: String,
@@ -164,111 +167,125 @@ class NotificationProcessor(
             else -> TransactionType.EXPENSE
         }
 
-        val currency = parsed.currency ?: settings.baseCurrency
-        val duplicate = repository.findPotentialDuplicate(
-            amount = parsed.amount,
-            currency = currency,
-            timestamp = raw.postedAt
-        )
-        if (duplicate != null) {
-            repository.updateRawNotification(
-                raw.copy(
-                    status = NotificationProcessStatus.DUPLICATE,
-                    aiResponseJson = rawJson,
-                    linkedTransactionId = duplicate.id,
-                    errorMessage = "Merged with existing transaction #${duplicate.id}"
-                )
+        val rawCurrency = parsed.currency?.trim()?.uppercase().orEmpty()
+        val currency = when {
+            rawCurrency == "S$" || rawCurrency == "SG$" -> "SGD"
+            rawCurrency.length == 3 && rawCurrency.all { it.isLetter() } -> rawCurrency
+            else -> settings.baseCurrency
+        }
+        val merchantName = parsed.merchant ?: raw.appName
+
+        val (savedTx, accountName, categoryName) = recordMutex.withLock {
+            val duplicate = repository.findPotentialDuplicate(
+                amount = parsed.amount,
+                currency = currency,
+                timestamp = raw.postedAt,
+                type = txType,
+                merchant = merchantName,
+                sourcePackageName = raw.packageName
             )
-            return ProcessOutcome.Duplicate(duplicate.id)
-        }
-
-        if (accounts.isEmpty()) {
-            val msg = "No active accounts available to record transaction."
-            repository.updateRawNotification(
-                raw.copy(
-                    status = NotificationProcessStatus.FAILED,
-                    aiResponseJson = rawJson,
-                    errorMessage = msg
+            if (duplicate != null) {
+                repository.updateRawNotification(
+                    raw.copy(
+                        status = NotificationProcessStatus.DUPLICATE,
+                        aiResponseJson = rawJson,
+                        linkedTransactionId = duplicate.id,
+                        errorMessage = "Merged with existing transaction #${duplicate.id}"
+                    )
                 )
-            )
-            return ProcessOutcome.PermanentFailure(msg)
-        }
-
-        val matchedAccount = parsed.accountId?.let { id -> accounts.firstOrNull { it.id == id } }
-        val resolvedAccount = matchedAccount ?: accounts.first()
-        var accountUnresolved = matchedAccount == null
-
-        val resolvedToAccount = if (txType == TransactionType.TRANSFER) {
-            val target = parsed.toAccountId?.let { id ->
-                accounts.firstOrNull { it.id == id && it.id != resolvedAccount.id }
+                return ProcessOutcome.Duplicate(duplicate.id)
             }
-            if (target == null) accountUnresolved = true
-            target
-        } else {
-            null
-        }
 
-        var categoryUnresolved = false
-        val resolvedCategory = if (txType == TransactionType.TRANSFER) {
-            null
-        } else {
-            val expectedCatType = if (txType == TransactionType.INCOME) CategoryType.INCOME else CategoryType.EXPENSE
-            val matched = parsed.categoryId?.let { id ->
-                categories.firstOrNull { it.id == id && it.type == expectedCatType }
+            if (accounts.isEmpty()) {
+                val msg = "No active accounts available to record transaction."
+                repository.updateRawNotification(
+                    raw.copy(
+                        status = NotificationProcessStatus.FAILED,
+                        aiResponseJson = rawJson,
+                        errorMessage = msg
+                    )
+                )
+                return ProcessOutcome.PermanentFailure(msg)
             }
-            if (matched != null) {
-                matched
+
+            val matchedAccount = parsed.accountId?.let { id -> accounts.firstOrNull { it.id == id } }
+            val resolvedAccount = matchedAccount ?: accounts.first()
+            var accountUnresolved = matchedAccount == null
+
+            val resolvedToAccount = if (txType == TransactionType.TRANSFER) {
+                val target = parsed.toAccountId?.let { id ->
+                    accounts.firstOrNull { it.id == id && it.id != resolvedAccount.id }
+                }
+                if (target == null) accountUnresolved = true
+                target
             } else {
-                categoryUnresolved = true
-                categories.firstOrNull {
-                    it.type == expectedCatType && it.name.contains("Other", ignoreCase = true)
-                } ?: categories.firstOrNull { it.type == expectedCatType }
+                null
             }
-        }
 
-        val needsReview = !settings.aiAutoRecordEnabled ||
-            parsed.confidence < settings.confidenceThreshold ||
-            accountUnresolved ||
-            categoryUnresolved
+            var categoryUnresolved = false
+            val resolvedCategory = if (txType == TransactionType.TRANSFER) {
+                null
+            } else {
+                val expectedCatType = if (txType == TransactionType.INCOME) CategoryType.INCOME else CategoryType.EXPENSE
+                val matched = parsed.categoryId?.let { id ->
+                    categories.firstOrNull { it.id == id && it.type == expectedCatType }
+                }
+                if (matched != null) {
+                    matched
+                } else {
+                    categoryUnresolved = true
+                    categories.firstOrNull {
+                        it.type == expectedCatType && it.name.contains("Other", ignoreCase = true)
+                    } ?: categories.firstOrNull { it.type == expectedCatType }
+                }
+            }
 
-        val rateToBase = repository.getExchangeRateToBase(currency, settings.baseCurrency)
-        val baseAmount = LedgerCalculations.computeBaseAmount(parsed.amount, rateToBase)
+            val needsReview = !settings.aiAutoRecordEnabled ||
+                parsed.confidence < settings.confidenceThreshold ||
+                accountUnresolved ||
+                categoryUnresolved
 
-        val tx = TransactionEntity(
-            type = txType,
-            amount = parsed.amount,
-            currency = currency,
-            exchangeRateToBase = rateToBase,
-            baseAmount = baseAmount,
-            accountId = resolvedAccount.id,
-            toAccountId = resolvedToAccount?.id,
-            categoryId = resolvedCategory?.id,
-            merchant = parsed.merchant ?: raw.appName,
-            note = parsed.note ?: raw.text.take(120),
-            timestamp = raw.postedAt,
-            source = TransactionSource.AI_NOTIFICATION,
-            aiConfidence = parsed.confidence,
-            needsReview = needsReview,
-            rawNotificationId = raw.id
-        )
+            val rateToBase = repository.getExchangeRateToBase(currency, settings.baseCurrency)
+            val baseAmount = LedgerCalculations.computeBaseAmount(parsed.amount, rateToBase)
 
-        val txId = repository.saveTransaction(tx)
-        val savedTx = tx.copy(id = txId)
-
-        repository.updateRawNotification(
-            raw.copy(
-                status = NotificationProcessStatus.RECORDED,
-                aiResponseJson = rawJson,
-                linkedTransactionId = txId,
-                errorMessage = null
+            val tx = TransactionEntity(
+                type = txType,
+                amount = parsed.amount,
+                currency = currency,
+                exchangeRateToBase = rateToBase,
+                baseAmount = baseAmount,
+                accountId = resolvedAccount.id,
+                toAccountId = resolvedToAccount?.id,
+                categoryId = resolvedCategory?.id,
+                merchant = merchantName,
+                note = parsed.note ?: raw.text.take(120),
+                timestamp = raw.postedAt,
+                source = TransactionSource.AI_NOTIFICATION,
+                aiConfidence = parsed.confidence,
+                needsReview = needsReview,
+                rawNotificationId = raw.id
             )
-        )
+
+            val txId = repository.saveTransaction(tx)
+            val savedTx = tx.copy(id = txId)
+
+            repository.updateRawNotification(
+                raw.copy(
+                    status = NotificationProcessStatus.RECORDED,
+                    aiResponseJson = rawJson,
+                    linkedTransactionId = txId,
+                    errorMessage = null
+                )
+            )
+
+            Triple(savedTx, resolvedAccount.name, resolvedCategory?.name.orEmpty())
+        }
 
         TransactionAlertNotifier.showRecordedTransactionAlert(
             context = context,
             transaction = savedTx,
-            accountName = resolvedAccount.name,
-            categoryName = resolvedCategory?.name.orEmpty()
+            accountName = accountName,
+            categoryName = categoryName
         )
 
         val budgetAlerts = repository.evaluateBudgetAlerts(savedTx.timestamp)
@@ -277,8 +294,8 @@ class NotificationProcessor(
         }
 
         return ProcessOutcome.Recorded(
-            transactionId = txId,
-            needsReview = needsReview,
+            transactionId = savedTx.id,
+            needsReview = savedTx.needsReview,
             summary = "${savedTx.type.displayName} ${savedTx.amount} ${savedTx.currency}"
         )
     }

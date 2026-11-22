@@ -421,20 +421,50 @@ class MoneyRepository(
         amount: Double,
         currency: String,
         timestamp: Long,
-        windowMillis: Long = LedgerCalculations.DEFAULT_DEDUP_WINDOW_MILLIS
+        windowMillis: Long = LedgerCalculations.DEFAULT_DEDUP_WINDOW_MILLIS,
+        type: TransactionType? = null,
+        merchant: String? = null,
+        sourcePackageName: String? = null,
+        crossAppMerchantWindowMillis: Long = LedgerCalculations.CROSS_APP_MERCHANT_DEDUP_WINDOW_MILLIS
     ): TransactionEntity? {
+        val queryWindow = if (!sourcePackageName.isNullOrBlank() && !merchant.isNullOrBlank()) {
+            maxOf(windowMillis, crossAppMerchantWindowMillis)
+        } else {
+            windowMillis
+        }
         val candidates = transactionDao.findPotentialDuplicates(
             amount = amount,
             currency = currency,
-            startMillis = timestamp - windowMillis,
-            endMillis = timestamp + windowMillis
+            startMillis = timestamp - queryWindow,
+            endMillis = timestamp + queryWindow
         )
+        val candidatePackages = if (!sourcePackageName.isNullOrBlank() && candidates.isNotEmpty()) {
+            buildMap {
+                for (candidate in candidates) {
+                    val rawId = candidate.rawNotificationId ?: continue
+                    val pkg = rawNotificationDao.getById(rawId)?.packageName
+                    if (!pkg.isNullOrBlank()) {
+                        put(candidate.id, pkg)
+                    }
+                }
+            }
+        } else {
+            emptyMap()
+        }
         return LedgerCalculations.findDuplicateTransaction(
             existing = candidates,
             amount = amount,
             currency = currency,
             timestamp = timestamp,
-            windowMillis = windowMillis
+            windowMillis = windowMillis,
+            type = type,
+            merchant = merchant,
+            crossAppMerchantWindowMillis = crossAppMerchantWindowMillis,
+            isDifferentSourceApp = { tx ->
+                val pkg = candidatePackages[tx.id]
+                !pkg.isNullOrBlank() && !sourcePackageName.isNullOrBlank() &&
+                    !pkg.equals(sourcePackageName, ignoreCase = true)
+            }
         )
     }
 
