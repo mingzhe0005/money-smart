@@ -65,6 +65,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.moneysmart.app.data.local.CategoryOrganizer
@@ -540,11 +541,16 @@ fun AddEditTransactionScreen(
                                     border = BorderStroke(1.dp, CoralAccent.copy(alpha = 0.4f)),
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .height(46.dp)
+                                        .heightIn(min = 48.dp)
                                 ) {
                                     Icon(Icons.Rounded.Payments, contentDescription = null, tint = CoralAccent)
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Link Friend Repayments (from Income)", color = EspressoInk)
+                                    Text(
+                                        text = "Link Friend Repayments",
+                                        color = EspressoInk,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
                                 }
                                 if (loadedTx?.splitBillId == null) {
                                     OutlinedButton(
@@ -553,11 +559,16 @@ fun AddEditTransactionScreen(
                                         border = BorderStroke(1.dp, CoralAccent.copy(alpha = 0.4f)),
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .height(46.dp)
+                                            .heightIn(min = 48.dp)
                                     ) {
                                         Icon(Icons.Rounded.Groups, contentDescription = null, tint = CoralAccent)
                                         Spacer(modifier = Modifier.width(6.dp))
-                                        Text("Split This Bill with Friends", color = EspressoInk)
+                                        Text(
+                                            text = "Split This Bill with Friends",
+                                            color = EspressoInk,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
                                     }
                                 }
                             }
@@ -657,7 +668,7 @@ fun AddEditTransactionScreen(
     if (showSplitDialog && loadedTx != null) {
         val baseTx = loadedTx!!
         CreateSplitBillDialog(
-            initialTitle = baseTx.merchant.ifBlank { "Shared Expense" },
+            initialTitle = baseTx.note.ifBlank { baseTx.merchant.ifBlank { "Shared Expense" } },
             initialAmount = baseTx.amount,
             initialCurrency = baseTx.currency,
             initialAccountId = baseTx.accountId,
@@ -775,7 +786,7 @@ fun AddEditTransactionScreen(
                                     )
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
-                                            text = incTx.merchant.ifBlank { incTx.note.ifBlank { "Income Transfer" } },
+                                            text = incTx.note.ifBlank { incTx.merchant.ifBlank { "Income Transfer" } },
                                             style = MaterialTheme.typography.bodyMedium,
                                             fontWeight = FontWeight.Medium
                                         )

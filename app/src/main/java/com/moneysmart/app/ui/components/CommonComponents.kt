@@ -630,7 +630,9 @@ fun TransactionRow(
         else -> CoralAccent
     }
 
+    val hasNote = transaction.note.isNotBlank()
     val title = when {
+        hasNote -> transaction.note
         transaction.merchant.isNotBlank() -> transaction.merchant
         transaction.type == TransactionType.TRANSFER ->
             "${account?.name ?: "Account"} → ${toAccount?.name ?: "Account"}"
@@ -739,9 +741,12 @@ fun TransactionRow(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                if (transaction.note.isNotBlank()) {
+                if (hasNote &&
+                    transaction.merchant.isNotBlank() &&
+                    !transaction.merchant.equals(transaction.note, ignoreCase = true)
+                ) {
                     Text(
-                        text = transaction.note,
+                        text = transaction.merchant,
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
                         maxLines = 1,
