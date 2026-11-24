@@ -126,7 +126,12 @@ class MoneyManagerImporter(
                 type: CategoryType
             ): Long? {
                 if (categoryName.isBlank()) return null
-                val parentClean = CategoryOrganizer.canonicalName(categoryName, type)
+                var parentClean = CategoryOrganizer.canonicalName(categoryName, type)
+                var effectiveSub = subcategoryName.trim()
+                if (type == CategoryType.EXPENSE && parentClean.equals("Snacks", ignoreCase = true)) {
+                    parentClean = "Food"
+                    if (effectiveSub.isBlank()) effectiveSub = "Snacks"
+                }
 
                 var parent = allCategories.firstOrNull {
                     it.parentId == null &&
@@ -159,8 +164,8 @@ class MoneyManagerImporter(
                     createdCategories++
                 }
 
-                if (subcategoryName.isBlank()) return parent.id
-                val subClean = CategoryOrganizer.cleanSubcategoryName(subcategoryName)
+                if (effectiveSub.isBlank()) return parent.id
+                val subClean = CategoryOrganizer.cleanSubcategoryName(effectiveSub)
 
                 var child = allCategories.firstOrNull {
                     it.parentId == parent.id &&

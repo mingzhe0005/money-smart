@@ -120,8 +120,8 @@ fun AccountsScreen(
             .background(MaterialTheme.colorScheme.background)
     ) {
         WarmCurvedHeroHeader(
-            title = "Accounts & Wallets",
-            subtitle = "${accountsWithBalances.size} active balances · Auto-recharge & live assets",
+            title = "Accounts",
+            subtitle = "${accountsWithBalances.size} active balances · Auto-recharge & live",
             heroColor = ApricotHero,
             useLightArtOnApricot = true,
             maxWidth = if (isWide) 1040.dp else 920.dp,
@@ -222,7 +222,7 @@ fun AccountsScreen(
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(20.dp)
+                                    .padding(16.dp)
                             ) {
                                 Text(
                                     text = "Net Worth (${settings.baseCurrency})",
@@ -232,11 +232,11 @@ fun AccountsScreen(
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     text = FormatUtils.formatMoney(netWorth, settings.baseCurrency),
-                                    style = MaterialTheme.typography.displaySmall,
+                                    style = MaterialTheme.typography.headlineMedium,
                                     color = Color.White,
                                     fontWeight = FontWeight.ExtraBold
                                 )
-                                Spacer(modifier = Modifier.height(14.dp))
+                                Spacer(modifier = Modifier.height(10.dp))
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(24.dp)
@@ -274,45 +274,94 @@ fun AccountsScreen(
                 }
 
                 grouped.forEach { (type, list) ->
+                    val sectionTotal = list.sumOf { it.balanceInBaseCurrency }
                     item(key = "group_${type.name}") {
-                        Text(
-                            text = type.displayName,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(top = 6.dp, bottom = 2.dp)
-                        )
-                    }
-                    val chunkedRows = if (isWide) list.chunked(2) else list.chunked(1)
-                    items(chunkedRows, key = { row -> "${type.name}_${row.first().account.id}" }) { rowItems ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(IntrinsicSize.Max),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                .padding(top = 8.dp, bottom = 2.dp, start = 4.dp, end = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            rowItems.forEach { item ->
-                                AccountSummaryCard(
-                                    item = item,
-                                    baseCurrency = settings.baseCurrency,
-                                    accountNameMap = accountNameMap,
-                                    onClick = {
-                                        editingItem = item
-                                        showAccountDialog = true
-                                    },
-                                    onTopUpNow = { acc, srcName ->
-                                        viewModel.rechargeAccountNow(acc.id) { amount ->
-                                            if (amount > 0.0) {
-                                                statusBanner = "Auto-recharged ${FormatUtils.formatMoney(amount, acc.currency)} from $srcName → ${acc.name}."
+                            Text(
+                                text = type.displayName,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = FormatUtils.formatMoney(sectionTotal, settings.baseCurrency),
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (sectionTotal < 0) ExpenseRed else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    if (isWide) {
+                        val chunkedRows = list.chunked(2)
+                        items(chunkedRows, key = { row -> "${type.name}_${row.first().account.id}" }) { rowItems ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(IntrinsicSize.Max),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                rowItems.forEach { item ->
+                                    AccountSummaryCard(
+                                        item = item,
+                                        baseCurrency = settings.baseCurrency,
+                                        accountNameMap = accountNameMap,
+                                        onClick = {
+                                            editingItem = item
+                                            showAccountDialog = true
+                                        },
+                                        onTopUpNow = { acc, srcName ->
+                                            viewModel.rechargeAccountNow(acc.id) { amount ->
+                                                if (amount > 0.0) {
+                                                    statusBanner = "Auto-recharged ${FormatUtils.formatMoney(amount, acc.currency)} from $srcName → ${acc.name}."
+                                                }
                                             }
-                                        }
-                                    },
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .fillMaxHeight()
-                                )
+                                        },
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .fillMaxHeight()
+                                    )
+                                }
+                                if (rowItems.size == 1) {
+                                    Spacer(modifier = Modifier.weight(1f))
+                                }
                             }
-                            if (isWide && rowItems.size == 1) {
-                                Spacer(modifier = Modifier.weight(1f))
+                        }
+                    } else {
+                        item(key = "group_card_${type.name}") {
+                            SoftElevatedCard(
+                                modifier = Modifier.fillMaxWidth(),
+                                cornerRadius = 18.dp
+                            ) {
+                                list.forEachIndexed { idx, item ->
+                                    AccountSummaryCard(
+                                        item = item,
+                                        baseCurrency = settings.baseCurrency,
+                                        accountNameMap = accountNameMap,
+                                        onClick = {
+                                            editingItem = item
+                                            showAccountDialog = true
+                                        },
+                                        onTopUpNow = { acc, srcName ->
+                                            viewModel.rechargeAccountNow(acc.id) { amount ->
+                                                if (amount > 0.0) {
+                                                    statusBanner = "Auto-recharged ${FormatUtils.formatMoney(amount, acc.currency)} from $srcName → ${acc.name}."
+                                                }
+                                            }
+                                        },
+                                        grouped = true
+                                    )
+                                    if (idx < list.lastIndex) {
+                                        HorizontalDivider(
+                                            modifier = Modifier.padding(horizontal = 12.dp),
+                                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -351,7 +400,8 @@ private fun AccountSummaryCard(
     accountNameMap: Map<Long, String>,
     onClick: () -> Unit,
     onTopUpNow: (AccountEntity, String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    grouped: Boolean = false
 ) {
     val acc = item.account
     val accent = when (acc.type) {
@@ -381,15 +431,11 @@ private fun AccountSummaryCard(
         if (!acc.includeInTotal) append(" · Excluded from Net Worth")
     }
 
-    SoftElevatedCard(
-        modifier = modifier.fillMaxWidth(),
-        onClick = onClick,
-        cornerRadius = 20.dp
-    ) {
+    val cardBody: @Composable () -> Unit = {
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(14.dp),
+                .fillMaxWidth()
+                .padding(horizontal = if (grouped) 12.dp else 14.dp, vertical = if (grouped) 10.dp else 14.dp),
             verticalArrangement = Arrangement.SpaceBetween
         ) {
             Row(
@@ -400,7 +446,7 @@ private fun AccountSummaryCard(
                     icon = IconCatalog.resolve(acc.iconName),
                     tint = accent,
                     containerColor = accent.copy(alpha = 0.13f),
-                    size = 44.dp
+                    size = if (grouped) 38.dp else 44.dp
                 )
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
@@ -433,7 +479,7 @@ private fun AccountSummaryCard(
             }
             if (acc.autoRechargeSourceAccountId != null && item.currentBalance < acc.autoRechargeMinBalance - 0.005) {
                 val srcName = accountNameMap[acc.autoRechargeSourceAccountId] ?: "Linked Bank"
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(8.dp))
                 Surface(
                     onClick = { onTopUpNow(acc, srcName) },
                     shape = RoundedCornerShape(12.dp),
@@ -449,6 +495,24 @@ private fun AccountSummaryCard(
                     )
                 }
             }
+        }
+    }
+
+    if (grouped) {
+        Box(
+            modifier = modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick)
+        ) {
+            cardBody()
+        }
+    } else {
+        SoftElevatedCard(
+            modifier = modifier.fillMaxWidth(),
+            onClick = onClick,
+            cornerRadius = 20.dp
+        ) {
+            cardBody()
         }
     }
 }

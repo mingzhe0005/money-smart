@@ -28,6 +28,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ViewList
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Checklist
@@ -44,6 +45,8 @@ import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -83,7 +86,6 @@ import com.moneysmart.app.ui.components.LabeledActionButton
 import com.moneysmart.app.ui.components.MonthSelectorBar
 import com.moneysmart.app.ui.components.ResponsiveContentBox
 import com.moneysmart.app.ui.components.SoftElevatedCard
-import com.moneysmart.app.ui.components.TopBarAddButton
 import com.moneysmart.app.ui.components.TransactionRow
 import com.moneysmart.app.ui.components.WarmCurvedHeroHeader
 import com.moneysmart.app.ui.components.WarmSegmentedPillBar
@@ -204,8 +206,9 @@ fun TransactionsScreen(
             .sumOf { LedgerCalculations.effectiveIncomeBaseAmount(it) }
     }
     val monthExpense = remember(allTransactions, monthStart, monthEnd) {
-        allTransactions.filter { it.timestamp in monthStart until monthEnd }
-            .sumOf { LedgerCalculations.effectiveExpenseBaseAmount(it) }
+        LedgerCalculations.effectiveTotalExpensesBase(
+            allTransactions.filter { it.timestamp in monthStart until monthEnd }
+        )
     }
 
     val selectableIds = remember(viewMode, filteredMonthTransactions, selectedCalendarDate, zoneId) {
@@ -221,106 +224,103 @@ fun TransactionsScreen(
         filteredMonthTransactions.any { it.id in selectedIds && it.needsReview }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-    ) {
-        if (selectionMode) {
-            Surface(
-                color = EspressoInk,
-                contentColor = Color.White,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .statusBarsPadding()
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+        ) {
+            if (selectionMode) {
+                Surface(
+                    color = EspressoInk,
+                    contentColor = Color.White,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { exitSelectionMode() }) {
-                            Icon(Icons.Rounded.Close, contentDescription = "Cancel selection", tint = Color.White)
-                        }
-                        Text(
-                            text = "${selectedIds.size} selected",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (selectableIds.isNotEmpty()) {
-                            IconButton(onClick = {
-                                val allSelected = selectableIds.all { it in selectedIds }
-                                selectedIds = if (allSelected) emptySet() else selectableIds.toSet()
-                            }) {
-                                Icon(Icons.Rounded.SelectAll, contentDescription = "Select all", tint = Color.White)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .statusBarsPadding()
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = { exitSelectionMode() }) {
+                                Icon(Icons.Rounded.Close, contentDescription = "Cancel selection", tint = Color.White)
                             }
-                        }
-                        if (hasSelectedNeedsReview && selectedIds.isNotEmpty()) {
-                            IconButton(onClick = {
-                                viewModel.markTransactionsReviewed(selectedIds.toList())
-                                exitSelectionMode()
-                            }) {
-                                Icon(Icons.Rounded.DoneAll, contentDescription = "Mark reviewed", tint = Color.White)
-                            }
-                        }
-                        IconButton(
-                            enabled = selectedIds.isNotEmpty(),
-                            onClick = { showBulkDeleteDialog = true }
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Delete,
-                                contentDescription = "Delete selected",
-                                tint = if (selectedIds.isNotEmpty()) CoralAccent else Color.White.copy(alpha = 0.4f)
+                            Text(
+                                text = "${selectedIds.size} selected",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
                             )
                         }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (selectableIds.isNotEmpty()) {
+                                IconButton(onClick = {
+                                    val allSelected = selectableIds.all { it in selectedIds }
+                                    selectedIds = if (allSelected) emptySet() else selectableIds.toSet()
+                                }) {
+                                    Icon(Icons.Rounded.SelectAll, contentDescription = "Select all", tint = Color.White)
+                                }
+                            }
+                            if (hasSelectedNeedsReview && selectedIds.isNotEmpty()) {
+                                IconButton(onClick = {
+                                    viewModel.markTransactionsReviewed(selectedIds.toList())
+                                    exitSelectionMode()
+                                }) {
+                                    Icon(Icons.Rounded.DoneAll, contentDescription = "Mark reviewed", tint = Color.White)
+                                }
+                            }
+                            IconButton(
+                                enabled = selectedIds.isNotEmpty(),
+                                onClick = { showBulkDeleteDialog = true }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Delete,
+                                    contentDescription = "Delete selected",
+                                    tint = if (selectedIds.isNotEmpty()) CoralAccent else Color.White.copy(alpha = 0.4f)
+                                )
+                            }
+                        }
                     }
                 }
-            }
-        } else {
-            WarmCurvedHeroHeader(
-                title = "Money Smart",
-                subtitle = if (isListenerEnabled && settings.geminiApiKey.isNotBlank()) {
-                    "AI auto-capture active (${settings.allowedPackages.size} apps)"
-                } else {
-                    "AI capture setup needed"
-                },
-                heroColor = PeachSoft,
-                maxWidth = if (isWide) 1040.dp else 940.dp,
-                actions = {
-                    if (viewMode != LedgerViewMode.MONTHLY && filteredMonthTransactions.isNotEmpty()) {
+            } else {
+                WarmCurvedHeroHeader(
+                    title = "Money Smart",
+                    subtitle = if (isListenerEnabled && settings.geminiApiKey.isNotBlank()) {
+                        "AI auto-capture (${settings.allowedPackages.size} apps)"
+                    } else {
+                        "AI capture setup needed"
+                    },
+                    heroColor = PeachSoft,
+                    maxWidth = if (isWide) 1040.dp else 940.dp,
+                    actions = {
+                        if (viewMode != LedgerViewMode.MONTHLY && filteredMonthTransactions.isNotEmpty()) {
+                            LabeledActionButton(
+                                icon = Icons.Rounded.Checklist,
+                                label = "Select",
+                                onClick = { selectionMode = true }
+                            )
+                        }
                         LabeledActionButton(
-                            icon = Icons.Rounded.Checklist,
-                            label = "Select",
-                            onClick = { selectionMode = true }
+                            icon = if (searchVisible) Icons.Rounded.Close else Icons.Rounded.Search,
+                            label = if (searchVisible) "Close" else "Search",
+                            onClick = { searchVisible = !searchVisible }
+                        )
+                        LabeledActionButton(
+                            icon = Icons.Rounded.AutoAwesome,
+                            label = "AI Setup",
+                            tint = if (isListenerEnabled && settings.geminiApiKey.isNotBlank()) {
+                                IncomeGreen
+                            } else {
+                                CoralAccent
+                            },
+                            onClick = onOpenAiActivity
                         )
                     }
-                    LabeledActionButton(
-                        icon = if (searchVisible) Icons.Rounded.Close else Icons.Rounded.Search,
-                        label = if (searchVisible) "Close" else "Search",
-                        onClick = { searchVisible = !searchVisible }
-                    )
-                    LabeledActionButton(
-                        icon = Icons.Rounded.AutoAwesome,
-                        label = "AI Setup",
-                        tint = if (isListenerEnabled && settings.geminiApiKey.isNotBlank()) {
-                            IncomeGreen
-                        } else {
-                            CoralAccent
-                        },
-                        onClick = onOpenAiActivity
-                    )
-                    TopBarAddButton(
-                        label = "Add",
-                        onClick = onAddTransaction
-                    )
-                }
-            )
-        }
+                )
+            }
 
         ResponsiveContentBox(
             modifier = Modifier
@@ -458,6 +458,22 @@ fun TransactionsScreen(
                         onRowLongClick = { txId -> enterSelectionWith(txId) }
                     )
                 }
+            }
+        }
+        }
+
+        if (!selectionMode) {
+            FloatingActionButton(
+                onClick = onAddTransaction,
+                containerColor = CoralAccent,
+                contentColor = Color.White,
+                shape = RoundedCornerShape(18.dp),
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 16.dp, bottom = 14.dp)
+                    .size(54.dp)
+            ) {
+                Icon(Icons.Rounded.Add, contentDescription = "Add transaction")
             }
         }
     }
@@ -704,11 +720,11 @@ private fun DailyTransactionsList(
     }
 
     LazyColumn(
-        contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp)
+        contentPadding = PaddingValues(top = 4.dp, bottom = 84.dp)
     ) {
         grouped.forEach { (date, dayTxs) ->
             val dayIncome = dayTxs.sumOf { LedgerCalculations.effectiveIncomeBaseAmount(it) }
-            val dayExpense = dayTxs.sumOf { LedgerCalculations.effectiveExpenseBaseAmount(it) }
+            val dayExpense = LedgerCalculations.effectiveTotalExpensesBase(dayTxs)
             item(key = "header_$date") {
                 Row(
                     modifier = Modifier
@@ -741,17 +757,57 @@ private fun DailyTransactionsList(
                     }
                 }
             }
-            items(dayTxs, key = { it.id }) { tx ->
-                TransactionRow(
-                    transaction = tx,
-                    account = accountMap[tx.accountId],
-                    toAccount = tx.toAccountId?.let { accountMap[it] },
-                    category = tx.categoryId?.let { categoryMap[it] },
+            item(key = "group_card_$date") {
+                GroupedDayTransactionsCard(
+                    transactions = dayTxs,
+                    accountMap = accountMap,
+                    categoryMap = categoryMap,
                     baseCurrency = baseCurrency,
-                    onClick = { onRowClick(tx.id) },
                     selectionMode = selectionMode,
-                    isSelected = tx.id in selectedIds,
-                    onLongClick = { onRowLongClick(tx.id) }
+                    selectedIds = selectedIds,
+                    onRowClick = onRowClick,
+                    onRowLongClick = onRowLongClick
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun GroupedDayTransactionsCard(
+    transactions: List<TransactionEntity>,
+    accountMap: Map<Long, AccountEntity>,
+    categoryMap: Map<Long, CategoryEntity>,
+    baseCurrency: String,
+    selectionMode: Boolean,
+    selectedIds: Set<Long>,
+    onRowClick: (Long) -> Unit,
+    onRowLongClick: (Long) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    SoftElevatedCard(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 2.dp),
+        cornerRadius = 18.dp
+    ) {
+        transactions.forEachIndexed { idx, tx ->
+            TransactionRow(
+                transaction = tx,
+                account = accountMap[tx.accountId],
+                toAccount = tx.toAccountId?.let { accountMap[it] },
+                category = tx.categoryId?.let { categoryMap[it] },
+                baseCurrency = baseCurrency,
+                onClick = { onRowClick(tx.id) },
+                selectionMode = selectionMode,
+                isSelected = tx.id in selectedIds,
+                onLongClick = { onRowLongClick(tx.id) },
+                grouped = true
+            )
+            if (idx < transactions.lastIndex) {
+                HorizontalDivider(
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
                 )
             }
         }
@@ -773,7 +829,7 @@ private fun MonthlyOverviewList(
     }
 
     LazyColumn(
-        contentPadding = PaddingValues(16.dp),
+        contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 84.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         items(monthRows) { rowMonths ->
@@ -787,7 +843,7 @@ private fun MonthlyOverviewList(
                     val (start, end) = FormatUtils.monthRangeMillis(ym, zoneId)
                     val monthTxs = allTransactions.filter { it.timestamp in start until end }
                     val inc = monthTxs.sumOf { LedgerCalculations.effectiveIncomeBaseAmount(it) }
-                    val exp = monthTxs.sumOf { LedgerCalculations.effectiveExpenseBaseAmount(it) }
+                    val exp = LedgerCalculations.effectiveTotalExpensesBase(monthTxs)
                     val net = inc - exp
 
                     SoftElevatedCard(
@@ -909,7 +965,7 @@ private fun CalendarTransactionsView(
                         if (dayNum in 1..daysInMonth) {
                             val date = yearMonth.atDay(dayNum)
                             val dayTxs = byDate[date].orEmpty()
-                            val dayExp = dayTxs.sumOf { LedgerCalculations.effectiveExpenseBaseAmount(it) }
+                            val dayExp = LedgerCalculations.effectiveTotalExpensesBase(dayTxs)
                             val dayInc = dayTxs.sumOf { LedgerCalculations.effectiveIncomeBaseAmount(it) }
                             val isSelected = date == selectedDate
                             val cellBg = when {
@@ -1034,7 +1090,7 @@ private fun CalendarTransactionsView(
                 modifier = Modifier
                     .weight(0.95f)
                     .fillMaxHeight(),
-                contentPadding = PaddingValues(bottom = 24.dp)
+                contentPadding = PaddingValues(bottom = 84.dp)
             ) {
                 item {
                     Row(
@@ -1072,24 +1128,23 @@ private fun CalendarTransactionsView(
                         )
                     }
                 } else {
-                    items(selectedDayTransactions, key = { it.id }) { tx ->
-                        TransactionRow(
-                            transaction = tx,
-                            account = accountMap[tx.accountId],
-                            toAccount = tx.toAccountId?.let { accountMap[it] },
-                            category = tx.categoryId?.let { categoryMap[it] },
+                    item(key = "cal_wide_group") {
+                        GroupedDayTransactionsCard(
+                            transactions = selectedDayTransactions,
+                            accountMap = accountMap,
+                            categoryMap = categoryMap,
                             baseCurrency = baseCurrency,
-                            onClick = { onRowClick(tx.id) },
                             selectionMode = selectionMode,
-                            isSelected = tx.id in selectedIds,
-                            onLongClick = { onRowLongClick(tx.id) }
+                            selectedIds = selectedIds,
+                            onRowClick = onRowClick,
+                            onRowLongClick = onRowLongClick
                         )
                     }
                 }
             }
         }
     } else {
-        LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
+        LazyColumn(contentPadding = PaddingValues(bottom = 84.dp)) {
             item {
                 CalendarGridBlock()
                 Spacer(modifier = Modifier.height(6.dp))
@@ -1105,17 +1160,16 @@ private fun CalendarTransactionsView(
                     )
                 }
             } else {
-                items(selectedDayTransactions, key = { it.id }) { tx ->
-                    TransactionRow(
-                        transaction = tx,
-                        account = accountMap[tx.accountId],
-                        toAccount = tx.toAccountId?.let { accountMap[it] },
-                        category = tx.categoryId?.let { categoryMap[it] },
+                item(key = "cal_portrait_group") {
+                    GroupedDayTransactionsCard(
+                        transactions = selectedDayTransactions,
+                        accountMap = accountMap,
+                        categoryMap = categoryMap,
                         baseCurrency = baseCurrency,
-                        onClick = { onRowClick(tx.id) },
                         selectionMode = selectionMode,
-                        isSelected = tx.id in selectedIds,
-                        onLongClick = { onRowLongClick(tx.id) }
+                        selectedIds = selectedIds,
+                        onRowClick = onRowClick,
+                        onRowLongClick = onRowLongClick
                     )
                 }
             }

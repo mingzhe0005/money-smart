@@ -81,7 +81,7 @@ object DefaultSeedData {
 
                 suspend fun addSpecs(type: CategoryType, specs: List<CategoryOrganizer.CategorySpec>) {
                     specs.forEach { spec ->
-                        categoryDao.insert(
+                        val parentId = categoryDao.insert(
                             CategoryEntity(
                                 name = spec.name,
                                 type = type,
@@ -91,6 +91,21 @@ object DefaultSeedData {
                                 sortOrder = order++
                             )
                         )
+                        if (type == CategoryType.EXPENSE) {
+                            val subs = CategoryOrganizer.defaultExpenseSubcategories[spec.name].orEmpty()
+                            subs.forEachIndexed { idx, subName ->
+                                categoryDao.insert(
+                                    CategoryEntity(
+                                        name = subName,
+                                        type = CategoryType.EXPENSE,
+                                        parentId = parentId,
+                                        iconName = spec.iconName,
+                                        colorHex = spec.colorHex,
+                                        sortOrder = idx + 1
+                                    )
+                                )
+                            }
+                        }
                     }
                 }
 
@@ -183,6 +198,71 @@ object DefaultSeedData {
             for ((key, group) in parentsByGroup) {
                 val canonical = CategoryOrganizer.canonicalName(group.first().name, key.first)
                 mergeGroup(group, canonical, isParent = true, activeCounts = parentCounts)
+            }
+
+            // 1b. Demote top-level "Snacks" under "Food", ensure Food -> Snacks & Reimbursement exist
+            val catsBeforeSubs = categoryDao.getAllCategories()
+            val foodSpec = CategoryOrganizer.canonicalSpec("Food", CategoryType.EXPENSE)!!
+            val existingFood = catsBeforeSubs.firstOrNull {
+                it.type == CategoryType.EXPENSE && it.parentId == null && it.name.equals("Food", ignoreCase = true)
+            }
+            val foodId = existingFood?.id ?: categoryDao.insert(
+                CategoryEntity(
+                    name = foodSpec.name,
+                    type = CategoryType.EXPENSE,
+                    parentId = null,
+                    iconName = foodSpec.iconName,
+                    colorHex = foodSpec.colorHex,
+                    sortOrder = 1
+                )
+            )
+            val topLevelSnacks = catsBeforeSubs.firstOrNull {
+                it.type == CategoryType.EXPENSE && it.parentId == null && it.name.equals("Snacks", ignoreCase = true)
+            }
+            if (topLevelSnacks != null) {
+                categoryDao.reassignParent(topLevelSnacks.id, foodId)
+                categoryDao.update(
+                    topLevelSnacks.copy(
+                        parentId = foodId,
+                        name = "Snacks",
+                        iconName = foodSpec.iconName,
+                        colorHex = foodSpec.colorHex
+                    )
+                )
+            } else {
+                val hasSnacksSub = catsBeforeSubs.any {
+                    it.type == CategoryType.EXPENSE && it.parentId == foodId && it.name.equals("Snacks", ignoreCase = true)
+                }
+                if (!hasSnacksSub) {
+                    categoryDao.insert(
+                        CategoryEntity(
+                            name = "Snacks",
+                            type = CategoryType.EXPENSE,
+                            parentId = foodId,
+                            iconName = foodSpec.iconName,
+                            colorHex = foodSpec.colorHex,
+                            sortOrder = 2
+                        )
+                    )
+                }
+            }
+            val hasReimbursement = catsBeforeSubs.any {
+                it.type == CategoryType.INCOME &&
+                    it.parentId == null &&
+                    CategoryOrganizer.isReimbursementCategoryName(it.name)
+            }
+            if (!hasReimbursement) {
+                val reimbSpec = CategoryOrganizer.canonicalSpec("Reimbursement", CategoryType.INCOME)!!
+                categoryDao.insert(
+                    CategoryEntity(
+                        name = reimbSpec.name,
+                        type = CategoryType.INCOME,
+                        parentId = null,
+                        iconName = reimbSpec.iconName,
+                        colorHex = reimbSpec.colorHex,
+                        sortOrder = 6
+                    )
+                )
             }
 
             // 2. Merge & clean subcategories within each parent

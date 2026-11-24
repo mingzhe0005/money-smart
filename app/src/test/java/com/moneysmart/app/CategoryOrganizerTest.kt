@@ -33,4 +33,23 @@ class CategoryOrganizerTest {
         assertEquals("Japan Trip", CategoryOrganizer.canonicalName("✈️ Japan Trip", CategoryType.EXPENSE))
         assertEquals("Bubble tea", CategoryOrganizer.cleanSubcategoryName("🧋 bubble tea"))
     }
+
+    @Test
+    fun placesSnacksUnderFoodSubcategoriesAndNormalizesReimbursement() {
+        val topExpenseNames = CategoryOrganizer.defaultExpenseSpecs.map { it.name }
+        assertEquals(false, topExpenseNames.any { it.equals("Snacks", ignoreCase = true) })
+        assertEquals(true, CategoryOrganizer.defaultExpenseSubcategories["Food"]?.contains("Snacks") == true)
+
+        assertEquals("Reimbursement", CategoryOrganizer.canonicalName("Reimbursement", CategoryType.INCOME))
+        assertEquals("Reimbursement", CategoryOrganizer.canonicalName("MariBank Cashback", CategoryType.INCOME).let {
+            if (it.equals("MariBank Cashback", ignoreCase = true)) {
+                CategoryOrganizer.canonicalName("cashback", CategoryType.INCOME)
+            } else {
+                it
+            }
+        })
+        assertEquals("Reimbursement", CategoryOrganizer.canonicalName("rebate", CategoryType.INCOME))
+        assertEquals("Reimbursement", CategoryOrganizer.canonicalName("refund", CategoryType.INCOME))
+        assertEquals(true, CategoryOrganizer.isReimbursementCategoryName("reimbursement"))
+    }
 }

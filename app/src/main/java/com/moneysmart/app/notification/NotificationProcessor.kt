@@ -1,6 +1,7 @@
 package com.moneysmart.app.notification
 
 import android.content.Context
+import com.moneysmart.app.data.local.CategoryOrganizer
 import com.moneysmart.app.data.local.SettingsDataStore
 import com.moneysmart.app.data.local.entity.CategoryType
 import com.moneysmart.app.data.local.entity.NotificationProcessStatus
@@ -248,6 +249,9 @@ class NotificationProcessor(
             val rateToBase = repository.getExchangeRateToBase(currency, settings.baseCurrency)
             val baseAmount = LedgerCalculations.computeBaseAmount(parsed.amount, rateToBase)
 
+            val isReimb = txType == TransactionType.INCOME &&
+                CategoryOrganizer.isReimbursementCategoryName(resolvedCategory?.name)
+
             val tx = TransactionEntity(
                 type = txType,
                 amount = parsed.amount,
@@ -263,7 +267,8 @@ class NotificationProcessor(
                 source = TransactionSource.AI_NOTIFICATION,
                 aiConfidence = parsed.confidence,
                 needsReview = needsReview,
-                rawNotificationId = raw.id
+                rawNotificationId = raw.id,
+                isReimbursement = isReimb
             )
 
             val txId = repository.saveTransaction(tx)

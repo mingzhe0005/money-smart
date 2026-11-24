@@ -12,7 +12,6 @@ object CategoryOrganizer {
 
     val defaultExpenseSpecs: List<CategorySpec> = listOf(
         CategorySpec("Food", "Restaurant", 0xFFEF4444L),
-        CategorySpec("Snacks", "LocalCafe", 0xFFF59E0BL),
         CategorySpec("Transport", "DirectionsCar", 0xFF0EA5E9L),
         CategorySpec("With Lulu", "CardGiftcard", 0xFFF43F5EL),
         CategorySpec("Social Life", "ShoppingBag", 0xFFEC4899L),
@@ -26,12 +25,18 @@ object CategoryOrganizer {
         CategorySpec("Other", "MoreHoriz", 0xFF64748BL)
     )
 
+    val defaultExpenseSubcategories: Map<String, List<String>> = mapOf(
+        "Food" to listOf("Eating Out", "Snacks", "Coffee & Drinks", "Groceries"),
+        "Transport" to listOf("Public Transit", "Ride-Hailing", "Fuel & Parking")
+    )
+
     val defaultIncomeSpecs: List<CategorySpec> = listOf(
         CategorySpec("Salary", "Payments", 0xFF059669L),
         CategorySpec("Bonus", "TrendingUp", 0xFF16A34AL),
         CategorySpec("Allowance", "AddCircle", 0xFF10B981L),
         CategorySpec("Interest", "AccountBalance", 0xFF0D9488L),
         CategorySpec("Petty Cash", "AccountBalanceWallet", 0xFF22C55EL),
+        CategorySpec("Reimbursement", "SwapHoriz", 0xFF0EA5E9L),
         CategorySpec("Other", "MoreHoriz", 0xFF64748BL)
     )
 
@@ -82,6 +87,11 @@ object CategoryOrganizer {
         "allowance" to "Allowance",
         "interest" to "Interest",
         "petty cash" to "Petty Cash",
+        "reimbursement" to "Reimbursement",
+        "reimbursements" to "Reimbursement",
+        "cashback" to "Reimbursement",
+        "rebate" to "Reimbursement",
+        "refund" to "Reimbursement",
         "other" to "Other",
         "others" to "Other",
         "other income" to "Other"
@@ -157,5 +167,9 @@ object CategoryOrganizer {
 
     fun canonicalSortRank(name: String, type: CategoryType): Int? {
         return orderByTypeAndKey[type to name.trim().lowercase()]
+    }
+
+    fun isReimbursementCategoryName(name: String?): Boolean {
+        return name?.trim()?.equals("Reimbursement", ignoreCase = true) == true
     }
 }

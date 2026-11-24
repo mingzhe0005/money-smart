@@ -36,6 +36,17 @@ object LedgerCalculations {
         return tx.baseAmount
     }
 
+    fun unlinkedReimbursementBaseAmount(tx: TransactionEntity): Double {
+        if (tx.isDeleted || tx.type != TransactionType.INCOME || !tx.isReimbursement || tx.splitBillId != null) return 0.0
+        return tx.baseAmount
+    }
+
+    fun effectiveTotalExpensesBase(transactions: List<TransactionEntity>): Double {
+        val gross = transactions.sumOf { effectiveExpenseBaseAmount(it) }
+        val offset = transactions.sumOf { unlinkedReimbursementBaseAmount(it) }
+        return ((gross - offset).coerceAtLeast(0.0) * 100.0).roundToLong() / 100.0
+    }
+
     /**
      * Splits [totalAmount] equally among 1 (you) + [friendCount] friends,
      * keeping each share rounded to 2 decimals and ensuring exact sum == totalAmount.

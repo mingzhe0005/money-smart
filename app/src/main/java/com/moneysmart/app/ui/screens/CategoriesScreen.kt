@@ -77,8 +77,8 @@ fun CategoriesScreen(
             .background(MaterialTheme.colorScheme.background)
     ) {
         WarmCurvedHeroHeader(
-            title = "Categories & Subcategories",
-            subtitle = "Organize spending & income labels for AI auto-tagging",
+            title = "Categories",
+            subtitle = "Organize spending & income labels",
             heroColor = PeachSoft,
             maxWidth = 900.dp,
             onNavigateBack = onNavigateBack,
@@ -116,7 +116,7 @@ fun CategoriesScreen(
                         val children = filtered.filter { it.parentId == parent.id }
                         val accent = Color(parent.colorHex)
                         SoftElevatedCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 18.dp) {
-                            Column(modifier = Modifier.padding(14.dp)) {
+                            Column(modifier = Modifier.padding(12.dp)) {
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -131,7 +131,7 @@ fun CategoriesScreen(
                                         icon = IconCatalog.resolve(parent.iconName),
                                         tint = accent,
                                         containerColor = accent.copy(alpha = 0.14f),
-                                        size = 40.dp
+                                        size = 38.dp
                                     )
                                     Spacer(modifier = Modifier.width(12.dp))
                                     Text(

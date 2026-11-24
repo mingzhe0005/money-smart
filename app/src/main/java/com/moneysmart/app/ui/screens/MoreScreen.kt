@@ -177,8 +177,8 @@ fun MoreScreen(
         ) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                contentPadding = PaddingValues(14.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(rows) { rowItems ->
                     Row(
@@ -193,19 +193,19 @@ fun MoreScreen(
                                 modifier = Modifier
                                     .weight(1f)
                                     .fillMaxHeight(),
-                                cornerRadius = 20.dp
+                                cornerRadius = 18.dp
                             ) {
                                 Row(
                                     modifier = Modifier
                                         .fillMaxSize()
-                                        .padding(16.dp),
+                                        .padding(horizontal = 14.dp, vertical = 12.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     SquircleIconBadge(
                                         icon = item.icon,
                                         tint = item.accent,
                                         containerColor = item.accent.copy(alpha = 0.13f),
-                                        size = 46.dp
+                                        size = 40.dp
                                     )
                                     Spacer(modifier = Modifier.width(14.dp))
                                     Column(modifier = Modifier.weight(1f)) {

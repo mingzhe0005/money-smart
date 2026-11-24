@@ -220,7 +220,7 @@ fun WarmCurvedHeroHeader(
                     modifier = Modifier
                         .fillMaxWidth()
                         .statusBarsPadding()
-                        .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 24.dp)
+                        .padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 18.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -236,7 +236,7 @@ fun WarmCurvedHeroHeader(
                                     onClick = onNavigateBack,
                                     shape = RoundedCornerShape(12.dp),
                                     color = if (isDark) MaterialTheme.colorScheme.surfaceContainerHigh else Color.White.copy(alpha = 0.85f),
-                                    modifier = Modifier.size(40.dp)
+                                    modifier = Modifier.size(38.dp)
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
                                         Icon(
@@ -247,12 +247,12 @@ fun WarmCurvedHeroHeader(
                                         )
                                     }
                                 }
-                                Spacer(modifier = Modifier.width(12.dp))
+                                Spacer(modifier = Modifier.width(10.dp))
                             }
                             Column {
                                 Text(
                                     text = title,
-                                    style = MaterialTheme.typography.headlineSmall,
+                                    style = MaterialTheme.typography.titleLarge,
                                     color = effectiveTitleColor,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
@@ -606,7 +606,8 @@ fun TransactionRow(
     modifier: Modifier = Modifier,
     selectionMode: Boolean = false,
     isSelected: Boolean = false,
-    onLongClick: (() -> Unit)? = null
+    onLongClick: (() -> Unit)? = null,
+    grouped: Boolean = false
 ) {
     val isDark = isSystemInDarkTheme()
     val amountColor = when {
@@ -653,26 +654,14 @@ fun TransactionRow(
         add(FormatUtils.formatTime(transaction.timestamp))
     }
 
-    Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp)
-            .clip(RoundedCornerShape(18.dp))
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick
-            ),
-        shape = RoundedCornerShape(18.dp),
-        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
-        border = BorderStroke(
-            width = if (isSelected) 1.5.dp else 1.dp,
-            color = if (isSelected) CoralAccent else MaterialTheme.colorScheme.outlineVariant
-        )
-    ) {
+    val rowContent: @Composable () -> Unit = {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 11.dp),
+                .padding(
+                    horizontal = if (grouped) 12.dp else 14.dp,
+                    vertical = if (grouped) 9.dp else 11.dp
+                ),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (selectionMode) {
@@ -690,10 +679,10 @@ fun TransactionRow(
                 },
                 tint = badgeColor,
                 containerColor = badgeColor.copy(alpha = 0.13f),
-                size = 44.dp
+                size = if (grouped) 38.dp else 44.dp
             )
 
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(10.dp))
 
             Column(modifier = Modifier.weight(1f)) {
                 Row(
@@ -789,6 +778,39 @@ fun TransactionRow(
                     )
                 }
             }
+        }
+    }
+
+    if (grouped) {
+        Box(
+            modifier = modifier
+                .fillMaxWidth()
+                .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
+                .combinedClickable(
+                    onClick = onClick,
+                    onLongClick = onLongClick
+                )
+        ) {
+            rowContent()
+        }
+    } else {
+        Surface(
+            modifier = modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp)
+                .clip(RoundedCornerShape(18.dp))
+                .combinedClickable(
+                    onClick = onClick,
+                    onLongClick = onLongClick
+                ),
+            shape = RoundedCornerShape(18.dp),
+            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+            border = BorderStroke(
+                width = if (isSelected) 1.5.dp else 1.dp,
+                color = if (isSelected) CoralAccent else MaterialTheme.colorScheme.outlineVariant
+            )
+        ) {
+            rowContent()
         }
     }
 }

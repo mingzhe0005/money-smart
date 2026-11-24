@@ -1,6 +1,7 @@
 package com.moneysmart.app.data.repository
 
 import androidx.room.withTransaction
+import com.moneysmart.app.data.local.CategoryOrganizer
 import com.moneysmart.app.data.local.DefaultSeedData
 import com.moneysmart.app.data.local.MoneySmartDatabase
 import com.moneysmart.app.data.local.SettingsDataStore
@@ -322,7 +323,13 @@ class MoneyRepository(
     suspend fun saveTransaction(tx: TransactionEntity): Long {
         val now = System.currentTimeMillis()
         val computedBase = LedgerCalculations.computeBaseAmount(tx.amount, tx.exchangeRateToBase)
-        val clean = tx.copy(baseAmount = computedBase, updatedAt = now)
+        val isReimb = if (tx.type == TransactionType.INCOME) {
+            val cat = tx.categoryId?.let { categoryDao.getById(it) }
+            tx.isReimbursement || CategoryOrganizer.isReimbursementCategoryName(cat?.name)
+        } else {
+            false
+        }
+        val clean = tx.copy(baseAmount = computedBase, isReimbursement = isReimb, updatedAt = now)
         val savedId = if (clean.id != 0L) {
             transactionDao.update(clean)
             clean.id

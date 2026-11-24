@@ -159,7 +159,7 @@ fun StatsScreen(
     }
 
     val totalExpense = remember(periodTxsAll) {
-        periodTxsAll.sumOf { LedgerCalculations.effectiveExpenseBaseAmount(it) }
+        LedgerCalculations.effectiveTotalExpensesBase(periodTxsAll)
     }
     val totalIncome = remember(periodTxsAll) {
         periodTxsAll.sumOf { LedgerCalculations.effectiveIncomeBaseAmount(it) }
@@ -254,7 +254,7 @@ fun StatsScreen(
                 DualBarEntry(
                     label = ym.month.name.take(3),
                     income = txs.sumOf { LedgerCalculations.effectiveIncomeBaseAmount(it) },
-                    expense = txs.sumOf { LedgerCalculations.effectiveExpenseBaseAmount(it) }
+                    expense = LedgerCalculations.effectiveTotalExpensesBase(txs)
                 )
             }
         } else {
@@ -268,7 +268,7 @@ fun StatsScreen(
                 DualBarEntry(
                     label = "${range.first}-${range.last}",
                     income = txs.sumOf { LedgerCalculations.effectiveIncomeBaseAmount(it) },
-                    expense = txs.sumOf { LedgerCalculations.effectiveExpenseBaseAmount(it) }
+                    expense = LedgerCalculations.effectiveTotalExpensesBase(txs)
                 )
             }
         }

@@ -67,6 +67,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.moneysmart.app.data.local.CategoryOrganizer
 import com.moneysmart.app.data.local.entity.CategoryType
 import com.moneysmart.app.data.local.entity.TransactionEntity
 import com.moneysmart.app.data.local.entity.TransactionSource
@@ -232,7 +233,11 @@ fun AddEditTransactionScreen(
             createdAt = base?.createdAt ?: System.currentTimeMillis(),
             reimbursedAmount = base?.reimbursedAmount ?: 0.0,
             reimbursedBaseAmount = base?.reimbursedBaseAmount ?: 0.0,
-            isReimbursement = base?.isReimbursement ?: false,
+            isReimbursement = txType == TransactionType.INCOME &&
+                (base?.splitBillId != null ||
+                    CategoryOrganizer.isReimbursementCategoryName(
+                        categories.firstOrNull { it.id == selectedCategoryId }?.name
+                    )),
             splitBillId = base?.splitBillId
         )
         viewModel.saveTransaction(toSave) {
