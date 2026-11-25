@@ -33,5 +33,8 @@ data class AccountEntity(
     val marketSymbol: String? = null,
     val holdingUnits: Double? = null,
     val lastSyncedMarketValue: Double? = null,
-    val lastMarketSyncAt: Long = 0L
+    val lastMarketSyncAt: Long = 0L,
+    val creditLimit: Double? = null,
+    val cardLast4: String? = null,
+    val defaultPaymentAccountId: Long? = null
 )

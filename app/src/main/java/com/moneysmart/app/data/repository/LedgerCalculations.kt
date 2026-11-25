@@ -130,6 +130,25 @@ object LedgerCalculations {
         return (calibrated * 100.0).roundToLong() / 100.0
     }
 
+    fun computeCreditCardOwed(currentBalance: Double): Double {
+        return ((-currentBalance).coerceAtLeast(0.0) * 100.0).roundToLong() / 100.0
+    }
+
+    fun computeCreditCardAvailable(currentBalance: Double, creditLimit: Double?): Double? {
+        if (creditLimit == null || creditLimit <= 0.0) return null
+        val available = (creditLimit - computeCreditCardOwed(currentBalance)).coerceAtLeast(0.0)
+        return (available * 100.0).roundToLong() / 100.0
+    }
+
+    fun computeCreditCardUtilization(currentBalance: Double, creditLimit: Double?): Float? {
+        if (creditLimit == null || creditLimit <= 0.0) return null
+        return (computeCreditCardOwed(currentBalance) / creditLimit).toFloat().coerceAtLeast(0f)
+    }
+
+    fun normalizeCardLast4(raw: String?): String? {
+        return raw?.filter { it.isDigit() }?.takeIf { it.length == 4 }
+    }
+
     private fun normalizeMerchantForDedup(raw: String?): String {
         return raw.orEmpty()
             .lowercase()

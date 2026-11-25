@@ -54,16 +54,24 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.material3.LinearProgressIndicator
 import com.moneysmart.app.data.local.entity.AccountEntity
 import com.moneysmart.app.data.local.entity.AccountType
 import com.moneysmart.app.data.repository.AccountWithBalance
+import com.moneysmart.app.data.repository.LedgerCalculations
+import com.moneysmart.app.ui.theme.IncomeGreen
+import com.moneysmart.app.ui.theme.WarningAmber
+import kotlin.math.abs
+import kotlin.math.roundToInt
 import com.moneysmart.app.ui.components.BauhausCornerArt
 import com.moneysmart.app.ui.components.EspressoPillButton
 import com.moneysmart.app.ui.components.IconCatalog
@@ -99,6 +107,7 @@ fun AccountsScreen(
 
     var editingItem by remember { mutableStateOf<AccountWithBalance?>(null) }
     var showAccountDialog by remember { mutableStateOf(false) }
+    var payingCardItem by remember { mutableStateOf<AccountWithBalance?>(null) }
     var statusBanner by remember { mutableStateOf<String?>(null) }
     var isSyncing by remember { mutableStateOf(false) }
 
@@ -321,6 +330,7 @@ fun AccountsScreen(
                                                 }
                                             }
                                         },
+                                        onPayBill = { payingCardItem = it },
                                         modifier = Modifier
                                             .weight(1f)
                                             .fillMaxHeight()
@@ -353,6 +363,7 @@ fun AccountsScreen(
                                                 }
                                             }
                                         },
+                                        onPayBill = { payingCardItem = it },
                                         grouped = true
                                     )
                                     if (idx < list.lastIndex) {
@@ -391,6 +402,31 @@ fun AccountsScreen(
             }
         )
     }
+
+    val cardToPay = payingCardItem
+    if (cardToPay != null) {
+        PayCreditCardDialog(
+            cardItem = cardToPay,
+            allAccounts = accountsWithBalances.map { it.account },
+            onDismiss = { payingCardItem = null },
+            onConfirmPay = { fromAccountId, amount, note ->
+                val fromName = accountNameMap[fromAccountId] ?: "Bank"
+                viewModel.payCreditCardBill(
+                    cardAccountId = cardToPay.account.id,
+                    fromAccountId = fromAccountId,
+                    amount = amount,
+                    note = note
+                ) { result ->
+                    result.onSuccess {
+                        statusBanner = "Paid ${FormatUtils.formatMoney(amount, cardToPay.account.currency)} from $fromName → ${cardToPay.account.name}."
+                    }.onFailure { err ->
+                        statusBanner = "Card payment failed: ${err.message}"
+                    }
+                    payingCardItem = null
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -400,19 +436,29 @@ private fun AccountSummaryCard(
     accountNameMap: Map<Long, String>,
     onClick: () -> Unit,
     onTopUpNow: (AccountEntity, String) -> Unit,
+    onPayBill: (AccountWithBalance) -> Unit,
     modifier: Modifier = Modifier,
     grouped: Boolean = false
 ) {
     val acc = item.account
+    val isCreditCard = acc.type == AccountType.CREDIT_CARD
     val accent = when (acc.type) {
         AccountType.E_WALLET -> CoralAccent
         AccountType.BANK -> EspressoInk
+        AccountType.CREDIT_CARD -> CoralAccent
         AccountType.INVESTMENT -> ApricotHero
         AccountType.CASH -> Color(0xFF2B8A6E)
         else -> Color(acc.colorHex)
     }
     val subtitle = buildString {
         append(acc.currency)
+        if (isCreditCard && !acc.cardLast4.isNullOrBlank()) {
+            append(" · •••• ${acc.cardLast4}")
+        }
+        if (isCreditCard && acc.defaultPaymentAccountId != null) {
+            val payName = accountNameMap[acc.defaultPaymentAccountId] ?: "Linked Bank"
+            append(" · Pay from $payName")
+        }
         if (acc.autoRechargeSourceAccountId != null) {
             val srcName = accountNameMap[acc.autoRechargeSourceAccountId] ?: "Linked Bank"
             append(" · Auto-recharge from $srcName")
@@ -429,6 +475,14 @@ private fun AccountSummaryCard(
             append(" · Set units to sync ($friendlyTicker)")
         }
         if (!acc.includeInTotal) append(" · Excluded from Net Worth")
+    }
+
+    val cardOwed = if (isCreditCard) LedgerCalculations.computeCreditCardOwed(item.currentBalance) else 0.0
+    val cardLimit = if (isCreditCard) acc.creditLimit?.takeIf { it > 0.0 } else null
+    val cardUtilization = if (isCreditCard) {
+        LedgerCalculations.computeCreditCardUtilization(item.currentBalance, cardLimit)
+    } else {
+        null
     }
 
     val cardBody: @Composable () -> Unit = {
@@ -461,20 +515,130 @@ private fun AccountSummaryCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+                Spacer(modifier = Modifier.width(8.dp))
                 Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        text = FormatUtils.formatMoney(item.currentBalance, acc.currency),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = if (item.currentBalance < 0) ExpenseRed else MaterialTheme.colorScheme.onSurface
-                    )
-                    if (!acc.currency.equals(baseCurrency, ignoreCase = true)) {
+                    if (isCreditCard) {
+                        when {
+                            cardOwed > 0.005 -> {
+                                Text(
+                                    text = FormatUtils.formatMoney(cardOwed, acc.currency),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = ExpenseRed
+                                )
+                                Text(
+                                    text = "owed",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = ExpenseRed.copy(alpha = 0.85f)
+                                )
+                            }
+                            item.currentBalance > 0.005 -> {
+                                Text(
+                                    text = "+${FormatUtils.formatMoney(item.currentBalance, acc.currency)}",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = IncomeGreen
+                                )
+                                Text(
+                                    text = "credit",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = IncomeGreen
+                                )
+                            }
+                            else -> {
+                                Text(
+                                    text = FormatUtils.formatMoney(0.0, acc.currency),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "paid off",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        if (!acc.currency.equals(baseCurrency, ignoreCase = true) && abs(item.currentBalance) > 0.005) {
+                            Text(
+                                text = "≈ ${FormatUtils.formatMoney(abs(item.balanceInBaseCurrency), baseCurrency)}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    } else {
                         Text(
-                            text = "≈ ${FormatUtils.formatMoney(item.balanceInBaseCurrency, baseCurrency)}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            text = FormatUtils.formatMoney(item.currentBalance, acc.currency),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = if (item.currentBalance < 0) ExpenseRed else MaterialTheme.colorScheme.onSurface
                         )
+                        if (!acc.currency.equals(baseCurrency, ignoreCase = true)) {
+                            Text(
+                                text = "≈ ${FormatUtils.formatMoney(item.balanceInBaseCurrency, baseCurrency)}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
+                }
+            }
+            if (cardLimit != null && cardUtilization != null) {
+                val barColor = when {
+                    cardUtilization >= 0.90f -> ExpenseRed
+                    cardUtilization >= 0.70f -> WarningAmber
+                    else -> CoralAccent
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                LinearProgressIndicator(
+                    progress = { cardUtilization.coerceIn(0f, 1f) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(4.dp)),
+                    color = barColor,
+                    trackColor = TrackBeige
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "${FormatUtils.formatMoney(cardOwed, acc.currency)} / ${FormatUtils.formatMoney(cardLimit, acc.currency)}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "${(cardUtilization * 100f).roundToInt()}% used",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = if (cardUtilization >= 0.70f) FontWeight.Bold else FontWeight.Medium,
+                        color = if (cardUtilization >= 0.70f) barColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                }
+            }
+            if (isCreditCard && cardOwed > 0.005) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Surface(
+                    onClick = { onPayBill(item) },
+                    shape = RoundedCornerShape(12.dp),
+                    color = CoralSoft,
+                    border = BorderStroke(1.dp, CoralAccent.copy(alpha = 0.35f))
+                ) {
+                    Text(
+                        text = "Pay Bill",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = CoralAccent,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)
+                    )
                 }
             }
             if (acc.autoRechargeSourceAccountId != null && item.currentBalance < acc.autoRechargeMinBalance - 0.005) {
@@ -533,10 +697,23 @@ private fun AccountEditorDialog(
     var type by remember { mutableStateOf(initial?.type ?: AccountType.BANK) }
     var currency by remember { mutableStateOf(initial?.currency ?: defaultCurrency) }
     var balanceText by remember {
+        val initDisplay = if (initial?.type == AccountType.CREDIT_CARD) {
+            val owed = -(initialItem?.currentBalance ?: 0.0)
+            if (abs(owed) < 0.005) 0.0 else owed
+        } else {
+            initialItem?.currentBalance ?: 0.0
+        }
+        mutableStateOf(String.format(java.util.Locale.US, "%.2f", initDisplay))
+    }
+    var creditLimitText by remember {
         mutableStateOf(
-            String.format(java.util.Locale.US, "%.2f", initialItem?.currentBalance ?: 0.0)
+            initial?.creditLimit?.takeIf { it > 0.0 }?.let {
+                String.format(java.util.Locale.US, "%.2f", it)
+            } ?: ""
         )
     }
+    var cardLast4Text by remember { mutableStateOf(initial?.cardLast4 ?: "") }
+    var defaultPaymentAccountId by remember { mutableStateOf(initial?.defaultPaymentAccountId) }
     var includeInTotal by remember { mutableStateOf(initial?.includeInTotal ?: true) }
     var rechargeSourceId by remember { mutableStateOf(initial?.autoRechargeSourceAccountId) }
     var marketSymbol by remember { mutableStateOf(initial?.marketSymbol ?: "") }
@@ -544,6 +721,7 @@ private fun AccountEditorDialog(
 
     var typeExpanded by remember { mutableStateOf(false) }
     var rechargeExpanded by remember { mutableStateOf(false) }
+    var defaultPayExpanded by remember { mutableStateOf(false) }
     var showRemoveConfirm by remember { mutableStateOf(false) }
 
     val defaultIcon = when (type) {
@@ -561,6 +739,14 @@ private fun AccountEditorDialog(
     val rechargeSourceLabel = rechargeSourceId?.let { id ->
         rechargeCandidates.firstOrNull { it.id == id }?.name
     } ?: "None (Disabled)"
+
+    val repaymentCandidates = remember(allAccounts, initial) {
+        val nonCards = allAccounts.filter { it.id != initial?.id && it.type != AccountType.CREDIT_CARD }
+        nonCards.ifEmpty { allAccounts.filter { it.id != initial?.id } }
+    }
+    val defaultPayLabel = defaultPaymentAccountId?.let { id ->
+        repaymentCandidates.firstOrNull { it.id == id }?.name
+    } ?: "None (Choose when paying)"
 
     val isWide = rememberIsWideScreen()
     val showAutoRechargePicker = type == AccountType.E_WALLET || type == AccountType.OTHER || rechargeSourceId != null
@@ -632,8 +818,17 @@ private fun AccountEditorDialog(
                         OutlinedTextField(
                             value = balanceText,
                             onValueChange = { balanceText = it },
-                            label = { Text(if (initial == null) "Initial Balance" else "Current Balance") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
+                            label = {
+                                Text(
+                                    when {
+                                        type == AccountType.CREDIT_CARD && initial == null -> "Starting Amount Owed"
+                                        type == AccountType.CREDIT_CARD -> "Current Amount Owed"
+                                        initial == null -> "Initial Balance"
+                                        else -> "Current Balance"
+                                    }
+                                )
+                            },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             singleLine = true,
                             shape = RoundedCornerShape(14.dp),
                             modifier = Modifier.weight(1.4f)
@@ -680,6 +875,71 @@ private fun AccountEditorDialog(
                                             rechargeExpanded = false
                                         }
                                     )
+                                }
+                            }
+                        }
+                    }
+
+                    if (type == AccountType.CREDIT_CARD) {
+                        OutlinedTextField(
+                            value = creditLimitText,
+                            onValueChange = { creditLimitText = it },
+                            label = { Text("Credit Limit (Optional)") },
+                            placeholder = { Text("e.g. 5000.00") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            singleLine = true,
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = cardLast4Text,
+                            onValueChange = { input ->
+                                cardLast4Text = input.filter { it.isDigit() }.take(4)
+                            },
+                            label = { Text("Card Last 4 Digits (Optional)") },
+                            placeholder = { Text("e.g. 1234 for AI matching") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        if (repaymentCandidates.isNotEmpty()) {
+                            ExposedDropdownMenuBox(
+                                expanded = defaultPayExpanded,
+                                onExpandedChange = { defaultPayExpanded = !defaultPayExpanded }
+                            ) {
+                                OutlinedTextField(
+                                    value = defaultPayLabel,
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    singleLine = true,
+                                    label = { Text("Default Repayment Bank (Optional)") },
+                                    shape = RoundedCornerShape(14.dp),
+                                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(defaultPayExpanded) },
+                                    modifier = Modifier
+                                        .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                                        .fillMaxWidth()
+                                )
+                                ExposedDropdownMenu(
+                                    expanded = defaultPayExpanded,
+                                    onDismissRequest = { defaultPayExpanded = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("None (Choose when paying)") },
+                                        onClick = {
+                                            defaultPaymentAccountId = null
+                                            defaultPayExpanded = false
+                                        }
+                                    )
+                                    repaymentCandidates.forEach { src ->
+                                        DropdownMenuItem(
+                                            text = { Text("${src.name} (${src.currency})") },
+                                            onClick = {
+                                                defaultPaymentAccountId = src.id
+                                                defaultPayExpanded = false
+                                            }
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -742,9 +1002,29 @@ private fun AccountEditorDialog(
                             text = "Save",
                             enabled = name.isNotBlank(),
                             onClick = {
-                                val targetBal = balanceText.toDoubleOrNull() ?: 0.0
+                                val parsedInput = balanceText.toDoubleOrNull() ?: 0.0
+                                val targetBal = if (type == AccountType.CREDIT_CARD) {
+                                    if (abs(parsedInput) < 0.005) 0.0 else -parsedInput
+                                } else {
+                                    parsedInput
+                                }
                                 val parsedUnits = holdingUnitsText.toDoubleOrNull()?.takeIf { it > 0.0 }
                                 val cleanSymbol = marketSymbol.trim().uppercase().takeIf { it.isNotEmpty() }
+                                val cleanLimit = if (type == AccountType.CREDIT_CARD) {
+                                    creditLimitText.toDoubleOrNull()?.takeIf { it > 0.0 }
+                                } else {
+                                    null
+                                }
+                                val cleanLast4 = if (type == AccountType.CREDIT_CARD) {
+                                    LedgerCalculations.normalizeCardLast4(cardLast4Text)
+                                } else {
+                                    null
+                                }
+                                val cleanDefaultPay = if (type == AccountType.CREDIT_CARD) {
+                                    defaultPaymentAccountId
+                                } else {
+                                    null
+                                }
                                 onSave(
                                     AccountEntity(
                                         id = initial?.id ?: 0L,
@@ -766,7 +1046,10 @@ private fun AccountEditorDialog(
                                         } else {
                                             null
                                         },
-                                        lastMarketSyncAt = initial?.lastMarketSyncAt ?: 0L
+                                        lastMarketSyncAt = initial?.lastMarketSyncAt ?: 0L,
+                                        creditLimit = cleanLimit,
+                                        cardLast4 = cleanLast4,
+                                        defaultPaymentAccountId = cleanDefaultPay
                                     ),
                                     targetBal
                                 )
@@ -820,4 +1103,136 @@ private fun AccountEditorDialog(
             }
         )
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PayCreditCardDialog(
+    cardItem: AccountWithBalance,
+    allAccounts: List<AccountEntity>,
+    onDismiss: () -> Unit,
+    onConfirmPay: (fromAccountId: Long, amount: Double, note: String) -> Unit
+) {
+    val card = cardItem.account
+    val owed = LedgerCalculations.computeCreditCardOwed(cardItem.currentBalance)
+    val candidates = remember(allAccounts, card.id) {
+        val nonCards = allAccounts.filter { it.id != card.id && it.type != AccountType.CREDIT_CARD }
+        nonCards.ifEmpty { allAccounts.filter { it.id != card.id } }
+    }
+    var selectedFromId by remember(card.id, candidates) {
+        mutableStateOf(
+            card.defaultPaymentAccountId?.takeIf { defId -> candidates.any { it.id == defId } }
+                ?: candidates.firstOrNull { it.type == AccountType.BANK }?.id
+                ?: candidates.firstOrNull()?.id
+        )
+    }
+    var amountText by remember(card.id, owed) {
+        mutableStateOf(String.format(java.util.Locale.US, "%.2f", owed))
+    }
+    var noteText by remember { mutableStateOf("") }
+    var fromExpanded by remember { mutableStateOf(false) }
+
+    val selectedFromLabel = candidates.firstOrNull { it.id == selectedFromId }?.let {
+        "${it.name} (${it.currency})"
+    } ?: "No source account available"
+    val parsedAmount = amountText.toDoubleOrNull() ?: 0.0
+    val canPay = selectedFromId != null && parsedAmount > 0.005
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Pay ${card.name}") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = "Current owed: ${FormatUtils.formatMoney(owed, card.currency)}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = ExpenseRed,
+                    fontWeight = FontWeight.SemiBold
+                )
+                if (candidates.isEmpty()) {
+                    Text(
+                        text = "Add a bank account or e-wallet first to pay this card bill.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    ExposedDropdownMenuBox(
+                        expanded = fromExpanded,
+                        onExpandedChange = { fromExpanded = !fromExpanded }
+                    ) {
+                        OutlinedTextField(
+                            value = selectedFromLabel,
+                            onValueChange = {},
+                            readOnly = true,
+                            singleLine = true,
+                            label = { Text("Pay From") },
+                            shape = RoundedCornerShape(14.dp),
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(fromExpanded) },
+                            modifier = Modifier
+                                .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                                .fillMaxWidth()
+                        )
+                        ExposedDropdownMenu(
+                            expanded = fromExpanded,
+                            onDismissRequest = { fromExpanded = false }
+                        ) {
+                            candidates.forEach { src ->
+                                DropdownMenuItem(
+                                    text = { Text("${src.name} (${src.currency})") },
+                                    onClick = {
+                                        selectedFromId = src.id
+                                        fromExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = amountText,
+                            onValueChange = { amountText = it },
+                            label = { Text("Amount (${card.currency})") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            singleLine = true,
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(
+                            onClick = {
+                                amountText = String.format(java.util.Locale.US, "%.2f", owed)
+                            }
+                        ) {
+                            Text("Full", color = CoralAccent, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    OutlinedTextField(
+                        value = noteText,
+                        onValueChange = { noteText = it },
+                        label = { Text("Note (Optional)") },
+                        placeholder = { Text("Credit card bill payment") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            EspressoPillButton(
+                text = "Pay Bill",
+                enabled = canPay,
+                onClick = {
+                    val fromId = selectedFromId ?: return@EspressoPillButton
+                    onConfirmPay(fromId, parsedAmount, noteText)
+                }
+            )
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
 }

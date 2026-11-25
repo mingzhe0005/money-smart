@@ -346,6 +346,53 @@ class MoneyRepository(
         return shortfall
     }
 
+    suspend fun payCreditCardBill(
+        cardAccountId: Long,
+        fromAccountId: Long,
+        amount: Double,
+        note: String = ""
+    ): Result<Long> {
+        if (amount <= 0.0) {
+            return Result.failure(IllegalArgumentException("Payment amount must be positive."))
+        }
+        if (cardAccountId == fromAccountId) {
+            return Result.failure(IllegalArgumentException("Source and destination accounts must differ."))
+        }
+        val card = accountDao.getById(cardAccountId)
+            ?: return Result.failure(IllegalArgumentException("Credit card account not found."))
+        val from = accountDao.getById(fromAccountId)
+            ?: return Result.failure(IllegalArgumentException("Source account not found."))
+        if (card.type != AccountType.CREDIT_CARD) {
+            return Result.failure(IllegalArgumentException("Target account is not a credit card."))
+        }
+
+        val cleanAmount = (amount * 100.0).roundToLong() / 100.0
+        val settings = settingsDataStore.getCurrentSettings()
+        val rateToBase = getExchangeRateToBase(card.currency, settings.baseCurrency)
+        val baseAmount = LedgerCalculations.computeBaseAmount(cleanAmount, rateToBase)
+        val now = System.currentTimeMillis()
+        val insertedId = transactionDao.insert(
+            TransactionEntity(
+                type = TransactionType.TRANSFER,
+                amount = cleanAmount,
+                currency = card.currency,
+                exchangeRateToBase = rateToBase,
+                baseAmount = baseAmount,
+                accountId = from.id,
+                toAccountId = card.id,
+                categoryId = null,
+                merchant = "Card Payment (${card.name})",
+                note = note.trim().ifBlank { "Credit card bill payment" },
+                timestamp = now,
+                source = TransactionSource.MANUAL,
+                needsReview = false,
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+        return Result.success(insertedId)
+    }
+
     suspend fun saveCategory(category: CategoryEntity): Long {
         return if (category.id == 0L) categoryDao.insert(category) else {
             categoryDao.update(category)

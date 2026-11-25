@@ -407,7 +407,8 @@ class GeminiApiClient(
                 "None"
             } else {
                 accounts.joinToString("\n") { acc ->
-                    "- id=${acc.id}, name=\"${acc.name}\", type=${acc.type.name}, currency=${acc.currency}"
+                    val last4Part = acc.cardLast4?.takeIf { it.isNotBlank() }?.let { ", last4=\"$it\"" } ?: ""
+                    "- id=${acc.id}, name=\"${acc.name}\", type=${acc.type.name}, currency=${acc.currency}$last4Part"
                 }
             }
 
@@ -443,7 +444,8 @@ class GeminiApiClient(
                    - General balance reminders or statements with no transaction event
                 2. Otherwise, set isFinancialTransaction=true and classification to one of: "EXPENSE", "INCOME", "TRANSFER".
                    - Bank cashbacks, rebates, refunds, and personal transfers paying you back (e.g., friends or family repaying money you covered) should use classification="INCOME" with the "Reimbursement" category.
-                3. Infer accountId (and toAccountId if TRANSFER) ONLY from the User Accounts list by matching bank name, card type, wallet name, or app name mentioned in the notification. Use null if unclear.
+                   - Credit card bill payments / repayments from a bank account to a credit card should use classification="TRANSFER" (accountId=source bank, toAccountId=credit card).
+                3. Infer accountId (and toAccountId if TRANSFER) ONLY from the User Accounts list by matching bank name, card type, card last 4 digits (last4), wallet name, or app name mentioned in the notification. Use null if unclear.
                 4. Infer categoryId ONLY from the User Categories list (prefer matching a subcategory if appropriate; ensure category type matches EXPENSE/INCOME; use null for TRANSFER or if unsure). Use the Learned User Spending Habits below whenever a merchant/note matches the user's history.
                 5. Extract positive numeric amount (no currency symbol), 3-letter ISO currency code (e.g. USD, SGD, MYR, EUR, GBP, JPY; if currency symbol is ambiguous like "${'$'}", infer from the notification or default to "$baseCurrency"), merchant/counterparty name, and a brief note.
                 6. Output confidence from 0.0 to 1.0 reflecting how certain you are about the classification, amount, and account/category match.

@@ -215,6 +215,24 @@ class MoneySmartViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
+    fun payCreditCardBill(
+        cardAccountId: Long,
+        fromAccountId: Long,
+        amount: Double,
+        note: String = "",
+        onResult: (Result<Long>) -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            val result = repository.payCreditCardBill(
+                cardAccountId = cardAccountId,
+                fromAccountId = fromAccountId,
+                amount = amount,
+                note = note
+            )
+            onResult(result)
+        }
+    }
+
     fun linkFriendRepaymentsToExpense(
         expenseTxId: Long,
         incomeTxIds: List<Long>,

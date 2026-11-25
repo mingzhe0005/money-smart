@@ -37,7 +37,7 @@ import com.moneysmart.app.data.local.entity.TransactionEntity
         SplitBillEntity::class,
         SplitParticipantEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -107,6 +107,14 @@ abstract class MoneySmartDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE accounts ADD COLUMN creditLimit REAL")
+                db.execSQL("ALTER TABLE accounts ADD COLUMN cardLast4 TEXT")
+                db.execSQL("ALTER TABLE accounts ADD COLUMN defaultPaymentAccountId INTEGER")
+            }
+        }
+
         @Volatile
         private var INSTANCE: MoneySmartDatabase? = null
 
@@ -133,7 +141,7 @@ abstract class MoneySmartDatabase : RoomDatabase() {
                             MoneySmartDatabase::class.java,
                             "money_smart.db"
                         )
-                            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                             .fallbackToDestructiveMigration()
                             .build()
                     }

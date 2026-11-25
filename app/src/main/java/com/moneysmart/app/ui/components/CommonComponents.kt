@@ -927,7 +927,8 @@ fun GeminiApiKeyGuideCard(modifier: Modifier = Modifier) {
                 text = "1. Open Google AI Studio and sign in with Google\n" +
                     "2. Tap \"Create API key\" (no credit card needed)\n" +
                     "3. Copy the key and paste it into Settings\n" +
-                    "4. Enable Notification Access & pick your bank apps",
+                    "4. Enable Notification Access & pick your bank apps\n" +
+                    "5. Turn on push alerts in your bank apps and set the minimum alert threshold (buffer) to $0.01 so small daily expenses are captured.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

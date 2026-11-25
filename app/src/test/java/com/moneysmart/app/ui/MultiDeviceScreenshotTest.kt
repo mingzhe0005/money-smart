@@ -173,9 +173,12 @@ class MultiDeviceScreenshotTest(
                     name = "Everyday Card",
                     type = AccountType.CREDIT_CARD,
                     currency = "SGD",
-                    initialBalance = 0.0,
+                    initialBalance = -130.80,
                     iconName = "CreditCard",
-                    colorHex = 0xFFEF4444L
+                    colorHex = 0xFFEF4444L,
+                    creditLimit = 500.0,
+                    cardLast4 = "4821",
+                    defaultPaymentAccountId = bankId
                 )
             )
 

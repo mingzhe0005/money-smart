@@ -28,6 +28,7 @@ object DefaultSeedData {
         StarterAccountTemplate("youtrip", "YouTrip", AccountType.E_WALLET, "CreditCard", 0xFF7C3AEDL),
         StarterAccountTemplate("wise", "Wise", AccountType.E_WALLET, "AccountBalanceWallet", 0xFF10B981L),
         StarterAccountTemplate("grabpay", "GrabPay", AccountType.E_WALLET, "Smartphone", 0xFF16A34AL),
+        StarterAccountTemplate("credit_card", "Credit Card", AccountType.CREDIT_CARD, "CreditCard", 0xFFDC2626L),
         StarterAccountTemplate("main_bank", "Main Bank", AccountType.BANK, "AccountBalance", 0xFF0D6E52L)
     )
 

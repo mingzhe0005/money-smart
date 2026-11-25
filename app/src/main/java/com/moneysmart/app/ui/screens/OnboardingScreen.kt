@@ -51,6 +51,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.moneysmart.app.data.local.DefaultSeedData
 import com.moneysmart.app.data.local.entity.AccountEntity
+import com.moneysmart.app.data.local.entity.AccountType
 import com.moneysmart.app.ui.components.EspressoPillButton
 import com.moneysmart.app.ui.components.GeminiApiKeyGuideCard
 import com.moneysmart.app.ui.components.IconCatalog
@@ -101,7 +102,12 @@ fun OnboardingScreen(
         val chosenAccounts = DefaultSeedData.starterAccountTemplates
             .filter { selectedTemplateIds[it.id] == true }
             .map { spec ->
-                val balance = initialBalanceInputs[spec.id]?.trim()?.toDoubleOrNull() ?: 0.0
+                val rawBalance = initialBalanceInputs[spec.id]?.trim()?.toDoubleOrNull() ?: 0.0
+                val balance = if (spec.type == AccountType.CREDIT_CARD && rawBalance > 0.0) {
+                    -rawBalance
+                } else {
+                    rawBalance
+                }
                 AccountEntity(
                     name = spec.name,
                     type = spec.type,
@@ -290,7 +296,15 @@ fun OnboardingScreen(
                                             OutlinedTextField(
                                                 value = initialBalanceInputs[spec.id] ?: "",
                                                 onValueChange = { initialBalanceInputs[spec.id] = it },
-                                                label = { Text("Starting balance ($selectedCurrency)") },
+                                                label = {
+                                                    Text(
+                                                        if (spec.type == AccountType.CREDIT_CARD) {
+                                                            "Current amount owed ($selectedCurrency)"
+                                                        } else {
+                                                            "Starting balance ($selectedCurrency)"
+                                                        }
+                                                    )
+                                                },
                                                 placeholder = { Text("0.00") },
                                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                                 singleLine = true,
