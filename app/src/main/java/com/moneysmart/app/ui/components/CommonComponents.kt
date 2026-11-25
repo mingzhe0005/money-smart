@@ -30,6 +30,7 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.ChevronLeft
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.Button
@@ -38,6 +39,7 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -52,6 +54,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -63,6 +66,7 @@ import com.moneysmart.app.data.local.entity.CategoryEntity
 import com.moneysmart.app.data.local.entity.TransactionEntity
 import com.moneysmart.app.data.local.entity.TransactionSource
 import com.moneysmart.app.data.local.entity.TransactionType
+import com.moneysmart.app.data.remote.AppUpdateChecker
 import com.moneysmart.app.ui.theme.ApricotHero
 import com.moneysmart.app.ui.theme.CoralAccent
 import com.moneysmart.app.ui.theme.EspressoInk
@@ -72,6 +76,7 @@ import com.moneysmart.app.ui.theme.HoneyGold
 import com.moneysmart.app.ui.theme.IncomeGreen
 import com.moneysmart.app.ui.theme.IncomeGreenDark
 import com.moneysmart.app.ui.theme.PeachSoft
+import com.moneysmart.app.ui.theme.PeachTint
 import com.moneysmart.app.ui.theme.TrackBeige
 import com.moneysmart.app.ui.theme.TransferBlue
 import com.moneysmart.app.ui.theme.TransferBlueDark
@@ -872,6 +877,68 @@ fun EmptyStateCard(
                         onClick = onAction
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun GeminiApiKeyGuideCard(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val isDark = isSystemInDarkTheme()
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        color = if (isDark) MaterialTheme.colorScheme.surfaceContainer else PeachTint,
+        border = BorderStroke(1.dp, CoralAccent.copy(alpha = 0.25f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.AutoAwesome,
+                    contentDescription = null,
+                    tint = CoralAccent,
+                    modifier = Modifier.size(18.dp)
+                )
+                Text(
+                    text = "How to get a free Gemini API key (1 min)",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Text(
+                text = "1. Open Google AI Studio and sign in with Google\n" +
+                    "2. Tap \"Create API key\" (no credit card needed)\n" +
+                    "3. Copy the key and paste it into Settings\n" +
+                    "4. Enable Notification Access & pick your bank apps",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            OutlinedButton(
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, CoralAccent.copy(alpha = 0.4f)),
+                onClick = { AppUpdateChecker.openUrl(context, "https://aistudio.google.com/apikey") }
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.OpenInNew,
+                    contentDescription = null,
+                    tint = CoralAccent,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "Open Google AI Studio",
+                    color = CoralAccent,
+                    fontWeight = FontWeight.SemiBold
+                )
             }
         }
     }

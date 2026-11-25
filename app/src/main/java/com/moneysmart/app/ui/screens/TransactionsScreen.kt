@@ -288,10 +288,11 @@ fun TransactionsScreen(
             } else {
                 WarmCurvedHeroHeader(
                     title = "Money Smart",
-                    subtitle = if (isListenerEnabled && settings.geminiApiKey.isNotBlank()) {
-                        "AI auto-capture (${settings.allowedPackages.size} apps)"
-                    } else {
-                        "AI capture setup needed"
+                    subtitle = when {
+                        !settings.aiCaptureEnabled -> "Personal finance tracker"
+                        isListenerEnabled && settings.geminiApiKey.isNotBlank() ->
+                            "AI auto-capture (${settings.allowedPackages.size} apps)"
+                        else -> "AI capture setup needed"
                     },
                     heroColor = PeachSoft,
                     maxWidth = if (isWide) 1040.dp else 940.dp,
@@ -308,16 +309,18 @@ fun TransactionsScreen(
                             label = if (searchVisible) "Close" else "Search",
                             onClick = { searchVisible = !searchVisible }
                         )
-                        LabeledActionButton(
-                            icon = Icons.Rounded.AutoAwesome,
-                            label = "AI Setup",
-                            tint = if (isListenerEnabled && settings.geminiApiKey.isNotBlank()) {
-                                IncomeGreen
-                            } else {
-                                CoralAccent
-                            },
-                            onClick = onOpenAiActivity
-                        )
+                        if (settings.aiCaptureEnabled) {
+                            LabeledActionButton(
+                                icon = Icons.Rounded.AutoAwesome,
+                                label = "AI Setup",
+                                tint = if (isListenerEnabled && settings.geminiApiKey.isNotBlank()) {
+                                    IncomeGreen
+                                } else {
+                                    CoralAccent
+                                },
+                                onClick = onOpenAiActivity
+                            )
+                        }
                     }
                 )
             }
@@ -342,7 +345,10 @@ fun TransactionsScreen(
                     )
                 }
 
-                if (!bannerDismissed && (!isListenerEnabled || settings.geminiApiKey.isBlank() || settings.allowedPackages.isEmpty())) {
+                if (settings.aiCaptureEnabled &&
+                    !bannerDismissed &&
+                    (!isListenerEnabled || settings.geminiApiKey.isBlank() || settings.allowedPackages.isEmpty())
+                ) {
                     SetupPromptBanner(
                         hasKey = settings.geminiApiKey.isNotBlank(),
                         hasListener = isListenerEnabled,

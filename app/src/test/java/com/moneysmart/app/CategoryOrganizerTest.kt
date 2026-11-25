@@ -11,7 +11,6 @@ class CategoryOrganizerTest {
     fun stripsEmojisAndNormalizesKnownExpenseAndIncomeCategories() {
         assertEquals("Food", CategoryOrganizer.canonicalName("🍜 Food", CategoryType.EXPENSE))
         assertEquals("Snacks", CategoryOrganizer.canonicalName("🍿Snacks", CategoryType.EXPENSE))
-        assertEquals("With Lulu", CategoryOrganizer.canonicalName("with lulu ❤️", CategoryType.EXPENSE))
         assertEquals("Accommodation", CategoryOrganizer.canonicalName("🛌 accomodation", CategoryType.EXPENSE))
         assertEquals("Accommodation", CategoryOrganizer.canonicalName("🛏 accomodation", CategoryType.EXPENSE))
         assertEquals("Social Life", CategoryOrganizer.canonicalName("👬🏻 Social Life", CategoryType.EXPENSE))
@@ -39,15 +38,14 @@ class CategoryOrganizerTest {
         val topExpenseNames = CategoryOrganizer.defaultExpenseSpecs.map { it.name }
         assertEquals(false, topExpenseNames.any { it.equals("Snacks", ignoreCase = true) })
         assertEquals(true, CategoryOrganizer.defaultExpenseSubcategories["Food"]?.contains("Snacks") == true)
+        assertEquals(true, "Shopping" in topExpenseNames)
+        assertEquals(true, "Bills & Utilities" in topExpenseNames)
+        assertEquals(true, "Entertainment" in topExpenseNames)
+        assertEquals(true, "Travel" in topExpenseNames)
+        assertEquals(true, CategoryOrganizer.legacyUnusedCategoryNames.isEmpty())
 
         assertEquals("Reimbursement", CategoryOrganizer.canonicalName("Reimbursement", CategoryType.INCOME))
-        assertEquals("Reimbursement", CategoryOrganizer.canonicalName("MariBank Cashback", CategoryType.INCOME).let {
-            if (it.equals("MariBank Cashback", ignoreCase = true)) {
-                CategoryOrganizer.canonicalName("cashback", CategoryType.INCOME)
-            } else {
-                it
-            }
-        })
+        assertEquals("Reimbursement", CategoryOrganizer.canonicalName("cashback", CategoryType.INCOME))
         assertEquals("Reimbursement", CategoryOrganizer.canonicalName("rebate", CategoryType.INCOME))
         assertEquals("Reimbursement", CategoryOrganizer.canonicalName("refund", CategoryType.INCOME))
         assertEquals(true, CategoryOrganizer.isReimbursementCategoryName("reimbursement"))

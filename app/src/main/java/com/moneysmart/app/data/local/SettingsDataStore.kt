@@ -37,7 +37,9 @@ data class AppSettings(
     val backupFolderUri: String = "",
     val autoBackupEnabled: Boolean = false,
     val lastBackupTimestamp: Long = 0L,
-    val lastRateSyncTimestamp: Long = 0L
+    val lastRateSyncTimestamp: Long = 0L,
+    val onboardingCompleted: Boolean = false,
+    val aiCaptureEnabled: Boolean = true
 ) {
     companion object {
         const val DEFAULT_GEMINI_MODEL = "gemini-3.8-flash"
@@ -62,6 +64,8 @@ class SettingsDataStore(private val context: Context) {
         val AUTO_BACKUP_ENABLED = booleanPreferencesKey("auto_backup_enabled")
         val LAST_BACKUP_TIMESTAMP = longPreferencesKey("last_backup_timestamp")
         val LAST_RATE_SYNC_TIMESTAMP = longPreferencesKey("last_rate_sync_timestamp")
+        val ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
+        val AI_CAPTURE_ENABLED = booleanPreferencesKey("ai_capture_enabled")
     }
 
     val settingsFlow: Flow<AppSettings> = context.dataStore.data.map { prefs ->
@@ -83,7 +87,9 @@ class SettingsDataStore(private val context: Context) {
             backupFolderUri = prefs[Keys.BACKUP_FOLDER_URI] ?: "",
             autoBackupEnabled = prefs[Keys.AUTO_BACKUP_ENABLED] ?: false,
             lastBackupTimestamp = prefs[Keys.LAST_BACKUP_TIMESTAMP] ?: 0L,
-            lastRateSyncTimestamp = prefs[Keys.LAST_RATE_SYNC_TIMESTAMP] ?: 0L
+            lastRateSyncTimestamp = prefs[Keys.LAST_RATE_SYNC_TIMESTAMP] ?: 0L,
+            onboardingCompleted = prefs[Keys.ONBOARDING_COMPLETED] ?: false,
+            aiCaptureEnabled = prefs[Keys.AI_CAPTURE_ENABLED] ?: true
         )
     }
 
@@ -120,6 +126,18 @@ class SettingsDataStore(private val context: Context) {
         context.dataStore.edit { prefs ->
             prefs[Keys.AI_AUTO_RECORD] = autoRecord
             prefs[Keys.CONFIDENCE_THRESHOLD] = confidenceThreshold.coerceIn(0.3f, 0.99f)
+        }
+    }
+
+    suspend fun setOnboardingCompleted(completed: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.ONBOARDING_COMPLETED] = completed
+        }
+    }
+
+    suspend fun setAiCaptureEnabled(enabled: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.AI_CAPTURE_ENABLED] = enabled
         }
     }
 

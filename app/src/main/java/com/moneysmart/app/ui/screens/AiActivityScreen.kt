@@ -55,6 +55,7 @@ import com.moneysmart.app.notification.PaymentNotificationListenerService
 import com.moneysmart.app.notification.ProcessOutcome
 import com.moneysmart.app.ui.components.EmptyStateCard
 import com.moneysmart.app.ui.components.EspressoPillButton
+import com.moneysmart.app.ui.components.GeminiApiKeyGuideCard
 import com.moneysmart.app.ui.components.LabeledActionButton
 import com.moneysmart.app.ui.components.ResponsiveContentBox
 import com.moneysmart.app.ui.components.SoftElevatedCard
@@ -219,6 +220,7 @@ fun AiActivityScreen(
                                 }
                             }
                             if (settings.geminiApiKey.isBlank()) {
+                                GeminiApiKeyGuideCard()
                                 TextButton(onClick = onOpenSettings) {
                                     Text(
                                         text = "Add Free Gemini API Key in Settings →",

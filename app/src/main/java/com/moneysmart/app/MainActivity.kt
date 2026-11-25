@@ -12,9 +12,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -23,9 +25,14 @@ import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.moneysmart.app.notification.TransactionAlertNotifier
 import com.moneysmart.app.ui.navigation.MoneySmartNavHost
+import com.moneysmart.app.ui.navigation.Routes
 import com.moneysmart.app.ui.screens.AppLockScreen
+import com.moneysmart.app.ui.screens.OnboardingFinishDestination
+import com.moneysmart.app.ui.screens.OnboardingScreen
 import com.moneysmart.app.ui.theme.MoneySmartTheme
 import com.moneysmart.app.ui.viewmodel.MoneySmartViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class MainActivity : FragmentActivity() {
 
@@ -42,18 +49,45 @@ class MainActivity : FragmentActivity() {
         handleIntent(intent)
         requestNotificationPermissionIfNeeded()
 
-        val settingsFlow = MoneySmartApp.container(this).settingsDataStore.settingsFlow
+        val container = MoneySmartApp.container(this)
+        val settingsFlow = container.settingsDataStore.settingsFlow
 
         setContent {
             val loadedSettings by settingsFlow.collectAsState(initial = null)
             val appSettings = loadedSettings
+            var onboardingChecked by remember { mutableStateOf(false) }
+            var initialNavigateRoute by remember { mutableStateOf<String?>(null) }
+
+            LaunchedEffect(appSettings?.onboardingCompleted) {
+                if (appSettings != null && !appSettings.onboardingCompleted && !onboardingChecked) {
+                    val hasExistingData = withContext(Dispatchers.IO) {
+                        container.repository.hasAnyAccounts()
+                    }
+                    if (hasExistingData) {
+                        container.settingsDataStore.setOnboardingCompleted(true)
+                    }
+                    onboardingChecked = true
+                }
+            }
 
             MoneySmartTheme(themeMode = appSettings?.themeMode ?: com.moneysmart.app.data.local.ThemeMode.SYSTEM) {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    if (appSettings == null) {
+                    if (appSettings == null || (!appSettings.onboardingCompleted && !onboardingChecked)) {
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             CircularProgressIndicator()
                         }
+                    } else if (!appSettings.onboardingCompleted) {
+                        val vm: MoneySmartViewModel = viewModel()
+                        OnboardingScreen(
+                            viewModel = vm,
+                            onFinished = { destination ->
+                                initialNavigateRoute = when (destination) {
+                                    OnboardingFinishDestination.AI_SETUP -> Routes.SETTINGS
+                                    OnboardingFinishDestination.IMPORT_BACKUP -> Routes.BACKUP
+                                    OnboardingFinishDestination.HOME -> null
+                                }
+                            }
+                        )
                     } else if (appSettings.appLockEnabled &&
                         appSettings.pinHash.isNotBlank() &&
                         !isUnlockedThisSession
@@ -69,7 +103,9 @@ class MainActivity : FragmentActivity() {
                         MoneySmartNavHost(
                             viewModel = vm,
                             deepLinkTransactionId = deepLinkTransactionId,
-                            onConsumedDeepLink = { deepLinkTransactionId = null }
+                            onConsumedDeepLink = { deepLinkTransactionId = null },
+                            initialNavigateRoute = initialNavigateRoute,
+                            onConsumedInitialRoute = { initialNavigateRoute = null }
                         )
                     }
                 }

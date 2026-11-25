@@ -13,15 +13,14 @@ object CategoryOrganizer {
     val defaultExpenseSpecs: List<CategorySpec> = listOf(
         CategorySpec("Food", "Restaurant", 0xFFEF4444L),
         CategorySpec("Transport", "DirectionsCar", 0xFF0EA5E9L),
-        CategorySpec("With Lulu", "CardGiftcard", 0xFFF43F5EL),
-        CategorySpec("Social Life", "ShoppingBag", 0xFFEC4899L),
-        CategorySpec("Apparel", "ShoppingBag", 0xFFA855F7L),
-        CategorySpec("Accommodation", "Home", 0xFF6366F1L),
-        CategorySpec("Household", "Home", 0xFF84CC16L),
+        CategorySpec("Shopping", "ShoppingBag", 0xFFEC4899L),
+        CategorySpec("Bills & Utilities", "ReceiptLong", 0xFF6366F1L),
+        CategorySpec("Entertainment", "Movie", 0xFF14B8A6L),
         CategorySpec("Health", "LocalHospital", 0xFF10B981L),
-        CategorySpec("Culture", "Movie", 0xFF14B8A6L),
+        CategorySpec("Household", "Home", 0xFF84CC16L),
+        CategorySpec("Travel", "Flight", 0xFF0284C7L),
         CategorySpec("Education", "School", 0xFF3B82F6L),
-        CategorySpec("Gift", "CardGiftcard", 0xFF8B5CF6L),
+        CategorySpec("Social & Gifts", "CardGiftcard", 0xFFF43F5EL),
         CategorySpec("Other", "MoreHoriz", 0xFF64748BL)
     )
 
@@ -40,18 +39,7 @@ object CategoryOrganizer {
         CategorySpec("Other", "MoreHoriz", 0xFF64748BL)
     )
 
-    val legacyUnusedCategoryNames: Set<String> = setOf(
-        "shopping",
-        "bills & utilities",
-        "utilities",
-        "groceries",
-        "entertainment",
-        "subscriptions",
-        "travel",
-        "freelance",
-        "investments",
-        "investment"
-    )
+    val legacyUnusedCategoryNames: Set<String> = emptySet()
 
     private val expenseAliases: Map<String, String> = mapOf(
         "food" to "Food",
@@ -61,7 +49,13 @@ object CategoryOrganizer {
         "snack" to "Snacks",
         "transport" to "Transport",
         "transportation" to "Transport",
-        "with lulu" to "With Lulu",
+        "shopping" to "Shopping",
+        "bills & utilities" to "Bills & Utilities",
+        "bills" to "Bills & Utilities",
+        "utilities" to "Bills & Utilities",
+        "entertainment" to "Entertainment",
+        "travel" to "Travel",
+        "social & gifts" to "Social & Gifts",
         "social life" to "Social Life",
         "social" to "Social Life",
         "apparel" to "Apparel",

@@ -109,7 +109,9 @@ private data class BottomTab(
 fun MoneySmartNavHost(
     viewModel: MoneySmartViewModel,
     deepLinkTransactionId: Long?,
-    onConsumedDeepLink: () -> Unit
+    onConsumedDeepLink: () -> Unit,
+    initialNavigateRoute: String? = null,
+    onConsumedInitialRoute: () -> Unit = {}
 ) {
     val navController = rememberNavController()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -130,6 +132,13 @@ fun MoneySmartNavHost(
         if (deepLinkTransactionId != null && deepLinkTransactionId > 0L) {
             navController.navigate(Routes.addEditTransaction(deepLinkTransactionId))
             onConsumedDeepLink()
+        }
+    }
+
+    LaunchedEffect(initialNavigateRoute) {
+        if (!initialNavigateRoute.isNullOrBlank()) {
+            navController.navigate(initialNavigateRoute)
+            onConsumedInitialRoute()
         }
     }
 

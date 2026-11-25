@@ -205,9 +205,46 @@ class MoneyRepository(
         return account.id
     }
 
-    suspend fun applyScreenshotSnapshotBalances(): Int {
-        val settings = settingsDataStore.getCurrentSettings()
-        return DefaultSeedData.applySnapshotBalances(db, settings.baseCurrency)
+    suspend fun hasAnyAccounts(): Boolean = accountDao.getAllAccounts().isNotEmpty()
+
+    suspend fun completeOnboarding(
+        baseCurrency: String,
+        starterAccounts: List<AccountEntity>,
+        aiCaptureEnabled: Boolean
+    ) {
+        val cleanCurrency = baseCurrency.trim().uppercase().ifBlank { "SGD" }
+        settingsDataStore.setBaseCurrency(cleanCurrency)
+        settingsDataStore.setAiCaptureEnabled(aiCaptureEnabled)
+        db.withTransaction {
+            DefaultSeedData.seedDefaultsIfEmpty(db, cleanCurrency)
+            if (accountDao.getAllAccounts().isEmpty()) {
+                val accountsToInsert = if (starterAccounts.isNotEmpty()) {
+                    starterAccounts
+                } else {
+                    listOf(
+                        AccountEntity(
+                            name = "Cash",
+                            type = AccountType.CASH,
+                            currency = cleanCurrency,
+                            initialBalance = 0.0,
+                            iconName = "AccountBalanceWallet",
+                            colorHex = 0xFF14B8A6L
+                        ),
+                        AccountEntity(
+                            name = "Main Bank",
+                            type = AccountType.BANK,
+                            currency = cleanCurrency,
+                            initialBalance = 0.0,
+                            iconName = "AccountBalance",
+                            colorHex = 0xFF0D6E52L
+                        )
+                    )
+                }
+                accountDao.insertAll(accountsToInsert)
+            }
+        }
+        DefaultSeedData.ensurePayLahAutoRechargeLinked(db)
+        settingsDataStore.setOnboardingCompleted(true)
     }
 
     suspend fun syncLiveInvestmentValues(): Result<Int> {

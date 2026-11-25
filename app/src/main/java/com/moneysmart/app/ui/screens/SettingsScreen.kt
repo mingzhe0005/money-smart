@@ -57,6 +57,7 @@ import com.moneysmart.app.data.remote.AppUpdateInfo
 import com.moneysmart.app.data.remote.ProbedGeminiModel
 import com.moneysmart.app.security.AppLockManager
 import com.moneysmart.app.ui.components.EspressoPillButton
+import com.moneysmart.app.ui.components.GeminiApiKeyGuideCard
 import com.moneysmart.app.ui.components.ResponsiveContentBox
 import com.moneysmart.app.ui.components.SoftElevatedCard
 import com.moneysmart.app.ui.components.WarmCurvedHeroHeader
@@ -146,11 +147,33 @@ fun SettingsScreen(
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
-                        Text(
-                            text = "Get a free API key from Google AI Studio (aistudio.google.com). Free tier requires no credit card and handles daily payment alerts easily.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Enable AI Notification Capture", fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    "Turn off for clean manual tracking without AI prompts",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Switch(
+                                checked = settings.aiCaptureEnabled,
+                                onCheckedChange = { viewModel.setAiCaptureEnabled(it) }
+                            )
+                        }
+                        if (apiKey.isBlank()) {
+                            GeminiApiKeyGuideCard()
+                        } else {
+                            Text(
+                                text = "Get a free API key from Google AI Studio (aistudio.google.com). Free tier requires no credit card and handles daily payment alerts easily.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                         OutlinedTextField(
                             value = apiKey,
                             onValueChange = { apiKey = it },

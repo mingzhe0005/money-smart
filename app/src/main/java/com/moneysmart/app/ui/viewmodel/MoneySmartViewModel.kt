@@ -180,7 +180,23 @@ class MoneySmartViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
-    suspend fun applyScreenshotBalancesNow(): Int = repository.applyScreenshotSnapshotBalances()
+    suspend fun hasAnyAccounts(): Boolean = repository.hasAnyAccounts()
+
+    fun completeOnboarding(
+        baseCurrency: String,
+        starterAccounts: List<AccountEntity>,
+        aiCaptureEnabled: Boolean,
+        onDone: () -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            repository.completeOnboarding(baseCurrency, starterAccounts, aiCaptureEnabled)
+            onDone()
+        }
+    }
+
+    fun setAiCaptureEnabled(enabled: Boolean) {
+        viewModelScope.launch { settingsDataStore.setAiCaptureEnabled(enabled) }
+    }
 
     suspend fun syncLiveInvestmentsNow(): Result<Int> = repository.syncLiveInvestmentValues()
 

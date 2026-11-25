@@ -189,11 +189,11 @@ class LedgerAndDedupTest {
         val transactions = listOf(
             // Salary = SGD 1000
             TransactionEntity(id = 1L, type = TransactionType.INCOME, amount = 1000.0, currency = "SGD", baseAmount = 1000.0, accountId = 1L),
-            // Covered dinner for Dad = SGD 50
+            // Covered dinner for family = SGD 50
             TransactionEntity(id = 2L, type = TransactionType.EXPENSE, amount = 50.0, currency = "SGD", baseAmount = 50.0, accountId = 1L),
-            // Dad transfers SGD 50 back marked as Reimbursement (unlinked to split bill)
+            // Transfer back SGD 50 marked as Reimbursement (unlinked to split bill)
             TransactionEntity(id = 3L, type = TransactionType.INCOME, amount = 50.0, currency = "SGD", baseAmount = 50.0, accountId = 1L, isReimbursement = true, splitBillId = null),
-            // Groceries SGD 30, MariBank Cashback SGD 2.50 marked as Reimbursement
+            // Groceries SGD 30, Bank Cashback SGD 2.50 marked as Reimbursement
             TransactionEntity(id = 4L, type = TransactionType.EXPENSE, amount = 30.0, currency = "SGD", baseAmount = 30.0, accountId = 1L),
             TransactionEntity(id = 5L, type = TransactionType.INCOME, amount = 2.50, currency = "SGD", baseAmount = 2.50, accountId = 1L, isReimbursement = true, splitBillId = null),
             // Split bill dinner SGD 60 where friend repaid SGD 30 (already reflected in reimbursedBaseAmount)
