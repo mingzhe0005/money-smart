@@ -12,3 +12,5 @@
 .cxx
 *.apk
 *.aab
+*_compare.png
+*_actual.png

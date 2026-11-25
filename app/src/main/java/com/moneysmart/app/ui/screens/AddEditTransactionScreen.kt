@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -377,7 +378,7 @@ fun AddEditTransactionScreen(
                                         contentDescription = "Clear amount",
                                         onClear = { amountText = "" }
                                     ),
-                                    modifier = Modifier.weight(1.7f)
+                                    modifier = Modifier.weight(1.25f)
                                 )
                                 CurrencyDropdown(
                                     selectedCurrency = currency,
@@ -503,20 +504,36 @@ fun AddEditTransactionScreen(
                                 OutlinedButton(
                                     onClick = { showDatePicker = true },
                                     shape = RoundedCornerShape(14.dp),
-                                    modifier = Modifier.weight(1f)
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 10.dp),
+                                    modifier = Modifier
+                                        .weight(1.25f)
+                                        .heightIn(min = 48.dp)
                                 ) {
                                     Icon(Icons.Rounded.CalendarMonth, contentDescription = null, modifier = Modifier.size(18.dp))
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text(FormatUtils.formatDate(timestampMillis))
+                                    Text(
+                                        text = FormatUtils.formatDate(timestampMillis),
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
                                 }
                                 OutlinedButton(
                                     onClick = { showTimePicker = true },
                                     shape = RoundedCornerShape(14.dp),
-                                    modifier = Modifier.weight(1f)
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 10.dp),
+                                    modifier = Modifier
+                                        .weight(0.85f)
+                                        .heightIn(min = 48.dp)
                                 ) {
                                     Icon(Icons.Rounded.Schedule, contentDescription = null, modifier = Modifier.size(18.dp))
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text(FormatUtils.formatTime(timestampMillis))
+                                    Text(
+                                        text = FormatUtils.formatTime(timestampMillis),
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
                                 }
                             }
 
@@ -843,6 +860,7 @@ fun CurrencyDropdown(
             value = selectedCurrency,
             onValueChange = {},
             readOnly = true,
+            singleLine = true,
             label = { Text("Currency") },
             shape = RoundedCornerShape(14.dp),
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
@@ -883,6 +901,7 @@ fun SimpleDropdownField(
             value = selectedLabel,
             onValueChange = {},
             readOnly = true,
+            singleLine = true,
             label = { Text(label) },
             shape = RoundedCornerShape(14.dp),
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },

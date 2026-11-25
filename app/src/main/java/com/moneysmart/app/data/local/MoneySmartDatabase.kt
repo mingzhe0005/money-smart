@@ -110,18 +110,42 @@ abstract class MoneySmartDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: MoneySmartDatabase? = null
 
+        @Volatile
+        private var inMemoryTestMode: Boolean = false
+
+        internal fun enableInMemoryTestMode() {
+            inMemoryTestMode = true
+        }
+
         fun getInstance(context: Context): MoneySmartDatabase {
             return INSTANCE ?: synchronized(this) {
-                INSTANCE ?: Room.databaseBuilder(
-                    context.applicationContext,
-                    MoneySmartDatabase::class.java,
-                    "money_smart.db"
-                )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
-                    .fallbackToDestructiveMigration()
-                    .build()
-                    .also { INSTANCE = it }
+                INSTANCE ?: run {
+                    if (inMemoryTestMode) {
+                        Room.inMemoryDatabaseBuilder(
+                            context.applicationContext,
+                            MoneySmartDatabase::class.java
+                        )
+                            .allowMainThreadQueries()
+                            .build()
+                    } else {
+                        Room.databaseBuilder(
+                            context.applicationContext,
+                            MoneySmartDatabase::class.java,
+                            "money_smart.db"
+                        )
+                            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                            .fallbackToDestructiveMigration()
+                            .build()
+                    }
+                }.also { INSTANCE = it }
             }
+        }
+
+        internal fun resetForTests() {
+            val dbToClose = synchronized(this) {
+                INSTANCE.also { INSTANCE = null }
+            }
+            runCatching { dbToClose?.close() }
         }
     }
 }

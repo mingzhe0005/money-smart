@@ -66,7 +66,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -537,7 +539,7 @@ private fun SetupPromptBanner(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 5.dp),
+                .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
@@ -552,14 +554,20 @@ private fun SetupPromptBanner(
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.Medium,
                 modifier = Modifier.weight(1f),
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
             TextButton(
                 onClick = onClick,
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
             ) {
-                Text(if (!hasKey) "Open Settings" else "Setup Now", color = CoralAccent, fontWeight = FontWeight.Bold)
+                Text(
+                    text = if (!hasKey) "Settings" else "Setup",
+                    color = CoralAccent,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    softWrap = false
+                )
             }
             IconButton(
                 onClick = onDismiss,
@@ -668,30 +676,56 @@ private fun SummaryStrip(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+                .padding(horizontal = 10.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            SummaryMetric("Income", FormatUtils.formatMoney(income, baseCurrency), incomeColor)
-            SummaryMetric("Expenses", FormatUtils.formatMoney(expense, baseCurrency), expenseColor)
-            SummaryMetric("Net", FormatUtils.formatMoney(net, baseCurrency), MaterialTheme.colorScheme.onSurface)
+            SummaryMetric(
+                label = "Income",
+                value = FormatUtils.formatMoney(income, baseCurrency),
+                color = incomeColor
+            )
+            SummaryMetric(
+                label = "Expenses",
+                value = FormatUtils.formatMoney(expense, baseCurrency),
+                color = expenseColor
+            )
+            SummaryMetric(
+                label = "Net",
+                value = FormatUtils.formatMoney(net, baseCurrency),
+                color = MaterialTheme.colorScheme.onSurface
+            )
         }
     }
 }
 
 @Composable
-private fun SummaryMetric(label: String, value: String, color: Color) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+private fun SummaryMetric(
+    label: String,
+    value: String,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    val compactLargeFont = LocalConfiguration.current.screenWidthDp < 390 &&
+        LocalDensity.current.fontScale > 1.15f
+    Column(
+        modifier = modifier.padding(horizontal = 2.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1
         )
         Text(
             text = value,
-            style = MaterialTheme.typography.titleSmall,
+            style = if (compactLargeFont) MaterialTheme.typography.labelMedium else MaterialTheme.typography.titleSmall,
             color = color,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }

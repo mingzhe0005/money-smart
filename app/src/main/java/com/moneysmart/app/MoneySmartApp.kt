@@ -14,7 +14,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
-class MoneySmartApp : Application() {
+open class MoneySmartApp : Application() {
 
     lateinit var container: AppContainer
         private set
@@ -25,7 +25,10 @@ class MoneySmartApp : Application() {
         super.onCreate()
         container = AppContainer(this)
         TransactionAlertNotifier.ensureChannelsCreated(this)
+        runStartupBackgroundWork()
+    }
 
+    protected open fun runStartupBackgroundWork() {
         appScope.launch {
             val settings = container.settingsDataStore.getCurrentSettings()
             DefaultSeedData.seedDefaultsIfEmpty(container.database, settings.baseCurrency)

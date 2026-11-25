@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -26,11 +27,11 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.ChevronLeft
 import androidx.compose.material.icons.rounded.ChevronRight
-import androidx.compose.material.icons.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.Button
@@ -55,6 +56,7 @@ import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -255,11 +257,12 @@ fun WarmCurvedHeroHeader(
                                 Spacer(modifier = Modifier.width(10.dp))
                             }
                             Column {
+                                val titleMaxLines = if (LocalDensity.current.fontScale > 1.15f) 2 else 1
                                 Text(
                                     text = title,
                                     style = MaterialTheme.typography.titleLarge,
                                     color = effectiveTitleColor,
-                                    maxLines = 1,
+                                    maxLines = titleMaxLines,
                                     overflow = TextOverflow.Ellipsis
                                 )
                                 if (!subtitle.isNullOrBlank()) {
@@ -407,7 +410,7 @@ fun EspressoPillButton(
     Button(
         onClick = onClick,
         enabled = enabled,
-        modifier = modifier.height(48.dp),
+        modifier = modifier.heightIn(min = 48.dp),
         shape = RoundedCornerShape(18.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = if (isDark) CoralAccent else EspressoInk,
@@ -415,7 +418,7 @@ fun EspressoPillButton(
             disabledContainerColor = TrackBeige,
             disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
         ),
-        contentPadding = PaddingValues(horizontal = 14.dp)
+        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp)
     ) {
         if (icon != null) {
             Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -446,6 +449,9 @@ fun WarmSegmentedPillBar(
     val isDark = isSystemInDarkTheme()
     val trackColor = if (isDark) MaterialTheme.colorScheme.surfaceContainerHigh else TrackBeige
     val selectedColor = if (isDark) CoralAccent else EspressoInk
+    val hideIconsForCompactFont = LocalConfiguration.current.screenWidthDp < 400 &&
+        LocalDensity.current.fontScale > 1.15f &&
+        options.size >= 3
 
     Surface(
         modifier = modifier.fillMaxWidth(),
@@ -470,11 +476,14 @@ fun WarmSegmentedPillBar(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 8.dp, horizontal = 8.dp),
+                            .padding(
+                                vertical = 8.dp,
+                                horizontal = if (hideIconsForCompactFont) 4.dp else 6.dp
+                            ),
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        val ic = icons?.getOrNull(idx)
+                        val ic = if (hideIconsForCompactFont) null else icons?.getOrNull(idx)
                         if (ic != null) {
                             Icon(
                                 imageVector = ic,
@@ -928,7 +937,7 @@ fun GeminiApiKeyGuideCard(modifier: Modifier = Modifier) {
                 onClick = { AppUpdateChecker.openUrl(context, "https://aistudio.google.com/apikey") }
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.OpenInNew,
+                    imageVector = Icons.AutoMirrored.Rounded.OpenInNew,
                     contentDescription = null,
                     tint = CoralAccent,
                     modifier = Modifier.size(16.dp)
