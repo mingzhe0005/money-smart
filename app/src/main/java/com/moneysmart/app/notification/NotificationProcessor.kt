@@ -34,6 +34,38 @@ class NotificationProcessor(
     private val geminiApiClient: GeminiApiClient
 ) {
     private val recordMutex = Mutex()
+    private val drainMutex = Mutex()
+
+    suspend fun processAllPendingNotifications(includeFailed: Boolean = false): Int = drainMutex.withLock {
+        val settings = settingsDataStore.getCurrentSettings()
+        if (!settings.aiCaptureEnabled || settings.geminiApiKey.isBlank()) return@withLock 0
+
+        repository.resetStaleProcessingNotifications(System.currentTimeMillis() - 120_000L)
+        val queue = if (includeFailed) {
+            repository.getRetryableRawNotifications()
+        } else {
+            repository.getPendingRawNotifications()
+        }
+        var processedCount = 0
+        for (item in queue) {
+            if (includeFailed && item.status == NotificationProcessStatus.FAILED) {
+                repository.updateRawNotification(
+                    item.copy(status = NotificationProcessStatus.PENDING, errorMessage = null)
+                )
+            }
+            when (val outcome = processRawNotification(item.id)) {
+                is ProcessOutcome.Recorded,
+                is ProcessOutcome.Duplicate,
+                is ProcessOutcome.Ignored -> processedCount++
+                is ProcessOutcome.RetryableFailure -> {
+                    if (isLikelyOfflineError(outcome.message)) break
+                }
+                is ProcessOutcome.PermanentFailure -> Unit
+            }
+        }
+        processedCount
+    }
+
     suspend fun simulateParse(
         appName: String,
         title: String,
@@ -303,5 +335,13 @@ class NotificationProcessor(
             needsReview = savedTx.needsReview,
             summary = "${savedTx.type.displayName} ${savedTx.amount} ${savedTx.currency}"
         )
+    }
+
+    companion object {
+        fun isLikelyOfflineError(message: String?): Boolean {
+            if (message.isNullOrBlank()) return false
+            val lower = message.lowercase()
+            return lower.contains("unable to resolve host") || lower.contains("network error")
+        }
     }
 }

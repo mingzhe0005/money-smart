@@ -285,6 +285,13 @@ class MoneySmartViewModel(application: Application) : AndroidViewModel(applicati
         ProcessNotificationWorker.enqueue(getApplication(), rawId)
     }
 
+    fun retryAllPendingNotifications(includeFailed: Boolean = true, onDone: (Int) -> Unit = {}) {
+        viewModelScope.launch {
+            val count = notificationProcessor.processAllPendingNotifications(includeFailed = includeFailed)
+            onDone(count)
+        }
+    }
+
     fun clearNotificationLog() {
         viewModelScope.launch { repository.clearRawNotificationLog() }
     }

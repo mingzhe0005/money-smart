@@ -19,6 +19,15 @@ interface RawNotificationDao {
     @Query("SELECT * FROM raw_notifications WHERE id = :id LIMIT 1")
     suspend fun getById(id: Long): RawNotificationEntity?
 
+    @Query("SELECT * FROM raw_notifications WHERE status = 'PENDING' ORDER BY postedAt ASC, id ASC LIMIT :limit")
+    suspend fun getPendingNotifications(limit: Int = 50): List<RawNotificationEntity>
+
+    @Query("SELECT * FROM raw_notifications WHERE status IN ('PENDING', 'FAILED') ORDER BY postedAt ASC, id ASC LIMIT :limit")
+    suspend fun getRetryableNotifications(limit: Int = 50): List<RawNotificationEntity>
+
+    @Query("UPDATE raw_notifications SET status = 'PENDING' WHERE status = 'PROCESSING' AND createdAt < :olderThanMillis")
+    suspend fun resetStaleProcessing(olderThanMillis: Long)
+
     @Query("SELECT * FROM raw_notifications ORDER BY id ASC")
     suspend fun getAllNotifications(): List<RawNotificationEntity>
 

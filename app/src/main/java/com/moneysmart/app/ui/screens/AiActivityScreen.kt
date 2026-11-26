@@ -1,6 +1,9 @@
 package com.moneysmart.app.ui.screens
 
+import android.content.Context
 import android.content.Intent
+import android.net.Uri
+import android.os.PowerManager
 import android.provider.Settings
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -89,10 +92,14 @@ fun AiActivityScreen(
     var isListenerEnabled by remember {
         mutableStateOf(PaymentNotificationListenerService.isNotificationListenerEnabled(context))
     }
+    var isIgnoringBatteryOptimizations by remember {
+        mutableStateOf(isIgnoringBatteryOptimization(context))
+    }
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 isListenerEnabled = PaymentNotificationListenerService.isNotificationListenerEnabled(context)
+                isIgnoringBatteryOptimizations = isIgnoringBatteryOptimization(context)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -217,6 +224,53 @@ fun AiActivityScreen(
                                         softWrap = false,
                                         overflow = TextOverflow.Ellipsis
                                     )
+                                }
+                            }
+                            if (isListenerEnabled && !isIgnoringBatteryOptimizations) {
+                                Surface(
+                                    color = PeachTint,
+                                    shape = RoundedCornerShape(14.dp),
+                                    border = BorderStroke(1.dp, WarningAmber.copy(alpha = 0.5f)),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(12.dp),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Text(
+                                            text = "Background Network May Be Restricted",
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            text = "Android & Samsung battery optimization can block AI capture while the screen is off ('Unable to resolve host'). Set Battery to Unrestricted for instant recording.",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        OutlinedButton(
+                                            onClick = {
+                                                val reqIntent = Intent(
+                                                    Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                                                    Uri.parse("package:${context.packageName}")
+                                                )
+                                                runCatching {
+                                                    context.startActivity(reqIntent)
+                                                }.onFailure {
+                                                    runCatching {
+                                                        context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+                                                    }
+                                                }
+                                            },
+                                            shape = RoundedCornerShape(14.dp),
+                                            border = BorderStroke(1.dp, CoralAccent.copy(alpha = 0.45f))
+                                        ) {
+                                            Text(
+                                                text = "Allow Unrestricted Battery",
+                                                color = CoralAccent,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                        }
+                                    }
                                 }
                             }
                             if (settings.geminiApiKey.isBlank()) {
@@ -378,12 +432,42 @@ fun AiActivityScreen(
                 }
 
                 item {
-                    Text(
-                        text = "Captured Notifications (${rawNotifications.size})",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(top = 6.dp)
-                    )
+                    val pendingOrFailedCount = rawNotifications.count {
+                        it.status == NotificationProcessStatus.PENDING || it.status == NotificationProcessStatus.FAILED
+                    }
+                    var retryingAll by remember { mutableStateOf(false) }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Captured Notifications (${rawNotifications.size})",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        if (pendingOrFailedCount > 0) {
+                            TextButton(
+                                enabled = !retryingAll,
+                                onClick = {
+                                    retryingAll = true
+                                    viewModel.retryAllPendingNotifications(includeFailed = true) {
+                                        retryingAll = false
+                                    }
+                                }
+                            ) {
+                                Icon(Icons.Rounded.Refresh, contentDescription = null, tint = CoralAccent)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = if (retryingAll) "Retrying..." else "Retry All ($pendingOrFailedCount)",
+                                    color = CoralAccent,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
                 }
 
                 if (rawNotifications.isEmpty()) {
@@ -497,4 +581,9 @@ fun AiActivityScreen(
             }
         }
     }
+}
+
+private fun isIgnoringBatteryOptimization(context: Context): Boolean {
+    val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return true
+    return powerManager.isIgnoringBatteryOptimizations(context.packageName)
 }

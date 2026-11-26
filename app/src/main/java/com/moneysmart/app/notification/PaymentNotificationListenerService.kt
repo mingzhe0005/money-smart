@@ -47,6 +47,7 @@ class PaymentNotificationListenerService : NotificationListenerService() {
         scope.launch {
             val container = MoneySmartApp.container(applicationContext)
             val settings = container.settingsDataStore.getCurrentSettings()
+            if (!settings.aiCaptureEnabled) return@launch
             if (pkg !in settings.allowedPackages) return@launch
 
             val recentIdentical = container.repository.findRecentIdenticalRawNotification(

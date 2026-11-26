@@ -8,6 +8,7 @@ import com.moneysmart.app.notification.TransactionAlertNotifier
 import com.moneysmart.app.worker.AutoBackupWorker
 import com.moneysmart.app.worker.ExchangeRateSyncWorker
 import com.moneysmart.app.worker.InvestmentSyncWorker
+import com.moneysmart.app.worker.PendingNotificationSweepWorker
 import com.moneysmart.app.worker.RecurringTransactionWorker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -37,6 +38,9 @@ open class MoneySmartApp : Application() {
             container.repository.processDueRecurringTransactions()
             container.repository.syncExchangeRates(force = false)
             container.repository.syncLiveInvestmentValues()
+            runCatching {
+                container.notificationProcessor.processAllPendingNotifications(includeFailed = false)
+            }
             if (settings.autoBackupEnabled && settings.backupFolderUri.isNotBlank()) {
                 AutoBackupWorker.schedulePeriodic(this@MoneySmartApp)
             }
@@ -45,6 +49,7 @@ open class MoneySmartApp : Application() {
         ExchangeRateSyncWorker.schedulePeriodic(this)
         RecurringTransactionWorker.schedulePeriodic(this)
         InvestmentSyncWorker.schedulePeriodic(this)
+        PendingNotificationSweepWorker.schedulePeriodic(this)
     }
 
     companion object {

@@ -730,6 +730,15 @@ class MoneyRepository(
     suspend fun getRawNotificationById(id: Long): RawNotificationEntity? =
         rawNotificationDao.getById(id)
 
+    suspend fun getPendingRawNotifications(limit: Int = 50): List<RawNotificationEntity> =
+        rawNotificationDao.getPendingNotifications(limit)
+
+    suspend fun getRetryableRawNotifications(limit: Int = 50): List<RawNotificationEntity> =
+        rawNotificationDao.getRetryableNotifications(limit)
+
+    suspend fun resetStaleProcessingNotifications(olderThanMillis: Long) =
+        rawNotificationDao.resetStaleProcessing(olderThanMillis)
+
     suspend fun findRecentIdenticalRawNotification(
         packageName: String,
         title: String,

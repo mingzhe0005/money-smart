@@ -22,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.moneysmart.app.notification.TransactionAlertNotifier
 import com.moneysmart.app.ui.navigation.MoneySmartNavHost
@@ -32,6 +33,7 @@ import com.moneysmart.app.ui.screens.OnboardingScreen
 import com.moneysmart.app.ui.theme.MoneySmartTheme
 import com.moneysmart.app.ui.viewmodel.MoneySmartViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class MainActivity : FragmentActivity() {
@@ -109,6 +111,17 @@ class MainActivity : FragmentActivity() {
                         )
                     }
                 }
+            }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        lifecycleScope.launch(Dispatchers.IO) {
+            runCatching {
+                MoneySmartApp.container(this@MainActivity)
+                    .notificationProcessor
+                    .processAllPendingNotifications(includeFailed = false)
             }
         }
     }
