@@ -110,4 +110,75 @@ class BillSplitterTest {
             0.001
         )
     }
+
+    @Test
+    fun excessiveReimbursementCanLinkAcrossMultipleExpensesAndExcessOffsetsMonthlyExpenses() {
+        val coffee = TransactionEntity(
+            id = 30L,
+            type = TransactionType.EXPENSE,
+            amount = 10.0,
+            currency = "SGD",
+            baseAmount = 10.0,
+            accountId = 1L
+        )
+        val dinner = TransactionEntity(
+            id = 31L,
+            type = TransactionType.EXPENSE,
+            amount = 25.0,
+            currency = "SGD",
+            baseAmount = 25.0,
+            accountId = 1L
+        )
+        val bigReimb = TransactionEntity(
+            id = 32L,
+            type = TransactionType.INCOME,
+            amount = 30.0,
+            currency = "SGD",
+            baseAmount = 30.0,
+            accountId = 2L,
+            isReimbursement = true
+        )
+
+        // Step 1: Link $30 reimb to $10 coffee -> $10 allocated, $20 left unallocated
+        val coffeeAfterStep1 = coffee.copy(reimbursedAmount = 10.0, reimbursedBaseAmount = 10.0, splitBillId = 1L)
+        val reimbAfterStep1 = bigReimb.copy(reimbursedAmount = 10.0, reimbursedBaseAmount = 10.0, splitBillId = 1L)
+
+        assertEquals(20.0, LedgerCalculations.remainingReimbursementAmount(reimbAfterStep1), 0.001)
+        assertEquals(0.0, LedgerCalculations.effectiveExpenseBaseAmount(coffeeAfterStep1), 0.001)
+        // Monthly total = ($0 coffee + $25 dinner) - $20 excess reimb = $5.00
+        assertEquals(
+            5.0,
+            LedgerCalculations.effectiveTotalExpensesBase(listOf(coffeeAfterStep1, dinner, reimbAfterStep1)),
+            0.001
+        )
+
+        // Step 2: Link remaining $20 from the SAME reimbursement to $25 dinner -> dinner net $5, reimb 30/30 used
+        val dinnerAfterStep2 = dinner.copy(reimbursedAmount = 20.0, reimbursedBaseAmount = 20.0, splitBillId = 2L)
+        val reimbAfterStep2 = reimbAfterStep1.copy(reimbursedAmount = 30.0, reimbursedBaseAmount = 30.0)
+
+        assertEquals(0.0, LedgerCalculations.remainingReimbursementAmount(reimbAfterStep2), 0.001)
+        assertEquals(5.0, LedgerCalculations.effectiveExpenseBaseAmount(dinnerAfterStep2), 0.001)
+        // Monthly total stays $5.00 (no double counting!)
+        assertEquals(
+            5.0,
+            LedgerCalculations.effectiveTotalExpensesBase(listOf(coffeeAfterStep1, dinnerAfterStep2, reimbAfterStep2)),
+            0.001
+        )
+
+        // Legacy compatibility: old linked reimbursement with splitBillId != null and reimbursedAmount == 0.0
+        val legacyLinked = TransactionEntity(
+            id = 40L,
+            type = TransactionType.INCOME,
+            amount = 40.0,
+            currency = "SGD",
+            baseAmount = 40.0,
+            accountId = 2L,
+            isReimbursement = true,
+            splitBillId = 9L,
+            reimbursedAmount = 0.0,
+            reimbursedBaseAmount = 0.0
+        )
+        assertEquals(0.0, LedgerCalculations.remainingReimbursementAmount(legacyLinked), 0.001)
+        assertEquals(0.0, LedgerCalculations.unlinkedReimbursementBaseAmount(legacyLinked), 0.001)
+    }
 }

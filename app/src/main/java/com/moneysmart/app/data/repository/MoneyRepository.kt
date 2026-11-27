@@ -862,6 +862,8 @@ class MoneyRepository(
                     note = "Split bill: ${bill.title}",
                     timestamp = now,
                     source = TransactionSource.MANUAL,
+                    reimbursedAmount = actualPaid,
+                    reimbursedBaseAmount = paidBase,
                     isReimbursement = true,
                     splitBillId = bill.id,
                     createdAt = now,
@@ -900,15 +902,38 @@ class MoneyRepository(
             if (!participant.isSettled) return@withTransaction
             val bill = splitBillDao.getBillById(participant.splitBillId) ?: return@withTransaction
 
+            val expenseTx = transactionDao.getById(bill.expenseTransactionId)
             val repayTx = participant.repaymentTransactionId?.let { transactionDao.getById(it) }
+            val paidBase = LedgerCalculations.computeBaseAmount(
+                participant.paidAmount,
+                expenseTx?.exchangeRateToBase ?: repayTx?.exchangeRateToBase ?: 1.0
+            )
             if (repayTx != null) {
-                transactionDao.softDelete(repayTx.id, now)
+                val paidInRepayCur = if (repayTx.currency.equals(bill.currency, ignoreCase = true)) {
+                    participant.paidAmount
+                } else if (repayTx.exchangeRateToBase > 0.0) {
+                    paidBase / repayTx.exchangeRateToBase
+                } else {
+                    paidBase
+                }
+                val isSharedMultiExpenseRepayment = repayTx.reimbursedAmount > 0.005 &&
+                    (repayTx.reimbursedAmount - paidInRepayCur) > 0.005
+                if (isSharedMultiExpenseRepayment) {
+                    val remAlloc = ((repayTx.reimbursedAmount - paidInRepayCur).coerceAtLeast(0.0) * 100.0).roundToLong() / 100.0
+                    val remAllocBase = ((repayTx.reimbursedBaseAmount - paidBase).coerceAtLeast(0.0) * 100.0).roundToLong() / 100.0
+                    transactionDao.update(
+                        repayTx.copy(
+                            reimbursedAmount = remAlloc,
+                            reimbursedBaseAmount = remAllocBase,
+                            updatedAt = now
+                        )
+                    )
+                } else {
+                    transactionDao.softDelete(repayTx.id, now)
+                }
             }
 
-            val expenseTx = transactionDao.getById(bill.expenseTransactionId)
             if (expenseTx != null) {
-                val paidBase = repayTx?.baseAmount
-                    ?: LedgerCalculations.computeBaseAmount(participant.paidAmount, expenseTx.exchangeRateToBase)
                 val newReimbursed = ((expenseTx.reimbursedAmount - participant.paidAmount).coerceAtLeast(0.0) * 100.0).roundToLong() / 100.0
                 val newReimbursedBase = ((expenseTx.reimbursedBaseAmount - paidBase).coerceAtLeast(0.0) * 100.0).roundToLong() / 100.0
                 transactionDao.update(
@@ -976,26 +1001,45 @@ class MoneyRepository(
                 )
             }
 
+            var remainingExpAmount = (expenseTx.amount - expenseTx.reimbursedAmount).coerceAtLeast(0.0)
+            var remainingExpBase = (expenseTx.baseAmount - expenseTx.reimbursedBaseAmount).coerceAtLeast(0.0)
             var addedAmount = 0.0
             var addedBaseAmount = 0.0
             val newParticipants = mutableListOf<SplitParticipantEntity>()
 
             for (incId in incomeTxIds.distinct()) {
+                if (remainingExpAmount <= 0.005 || remainingExpBase <= 0.005) break
                 val incTx = transactionDao.getById(incId) ?: continue
-                if (incTx.isDeleted || incTx.type != TransactionType.INCOME || incTx.splitBillId != null) continue
+                if (incTx.isDeleted || incTx.type != TransactionType.INCOME) continue
 
-                val amountInExpenseCurrency = if (incTx.currency.equals(expenseTx.currency, ignoreCase = true)) {
-                    incTx.amount
-                } else if (expenseTx.exchangeRateToBase > 0.0) {
-                    incTx.baseAmount / expenseTx.exchangeRateToBase
-                } else {
-                    incTx.baseAmount
+                val incRemAmount = LedgerCalculations.remainingReimbursementAmount(incTx)
+                val incRemBase = LedgerCalculations.remainingReimbursementBaseAmount(incTx)
+                if (incRemAmount <= 0.005 || incRemBase <= 0.005) continue
+
+                val sameCurrency = incTx.currency.equals(expenseTx.currency, ignoreCase = true)
+                val allocBase = ((minOf(remainingExpBase, incRemBase)) * 100.0).roundToLong() / 100.0
+                val rawAllocExpCur = when {
+                    sameCurrency -> minOf(remainingExpAmount, incRemAmount)
+                    expenseTx.exchangeRateToBase > 0.0 -> allocBase / expenseTx.exchangeRateToBase
+                    else -> allocBase
                 }
+                val allocExpCur = ((rawAllocExpCur.coerceAtMost(remainingExpAmount)) * 100.0).roundToLong() / 100.0
+                val rawAllocIncCur = when {
+                    sameCurrency -> allocExpCur
+                    incTx.exchangeRateToBase > 0.0 -> allocBase / incTx.exchangeRateToBase
+                    else -> allocBase
+                }
+                val allocIncCur = ((rawAllocIncCur.coerceAtMost(incRemAmount)) * 100.0).roundToLong() / 100.0
+                if (allocExpCur <= 0.005 || allocBase <= 0.005) continue
 
+                val newIncReimb = ((incTx.reimbursedAmount + allocIncCur).coerceAtMost(incTx.amount) * 100.0).roundToLong() / 100.0
+                val newIncReimbBase = ((incTx.reimbursedBaseAmount + allocBase).coerceAtMost(incTx.baseAmount) * 100.0).roundToLong() / 100.0
                 transactionDao.update(
                     incTx.copy(
                         isReimbursement = true,
-                        splitBillId = billId,
+                        reimbursedAmount = newIncReimb,
+                        reimbursedBaseAmount = newIncReimbBase,
+                        splitBillId = incTx.splitBillId ?: billId,
                         updatedAt = now
                     )
                 )
@@ -1005,16 +1049,18 @@ class MoneyRepository(
                     SplitParticipantEntity(
                         splitBillId = billId,
                         friendName = friendName,
-                        owedAmount = (amountInExpenseCurrency * 100.0).roundToLong() / 100.0,
-                        paidAmount = (amountInExpenseCurrency * 100.0).roundToLong() / 100.0,
+                        owedAmount = allocExpCur,
+                        paidAmount = allocExpCur,
                         isSettled = true,
                         repaidAccountId = incTx.accountId,
                         repaymentTransactionId = incTx.id,
                         settledAt = incTx.timestamp
                     )
                 )
-                addedAmount += amountInExpenseCurrency
-                addedBaseAmount += incTx.baseAmount
+                remainingExpAmount = (remainingExpAmount - allocExpCur).coerceAtLeast(0.0)
+                remainingExpBase = (remainingExpBase - allocBase).coerceAtLeast(0.0)
+                addedAmount += allocExpCur
+                addedBaseAmount += allocBase
                 linkedCount++
             }
 

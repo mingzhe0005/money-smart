@@ -36,9 +36,21 @@ object LedgerCalculations {
         return tx.baseAmount
     }
 
+    fun remainingReimbursementAmount(tx: TransactionEntity): Double {
+        if (tx.isDeleted || tx.type != TransactionType.INCOME) return 0.0
+        if (tx.splitBillId != null && tx.reimbursedAmount <= 0.005) return 0.0
+        return ((tx.amount - tx.reimbursedAmount).coerceAtLeast(0.0) * 100.0).roundToLong() / 100.0
+    }
+
+    fun remainingReimbursementBaseAmount(tx: TransactionEntity): Double {
+        if (tx.isDeleted || tx.type != TransactionType.INCOME) return 0.0
+        if (tx.splitBillId != null && tx.reimbursedBaseAmount <= 0.005) return 0.0
+        return ((tx.baseAmount - tx.reimbursedBaseAmount).coerceAtLeast(0.0) * 100.0).roundToLong() / 100.0
+    }
+
     fun unlinkedReimbursementBaseAmount(tx: TransactionEntity): Double {
-        if (tx.isDeleted || tx.type != TransactionType.INCOME || !tx.isReimbursement || tx.splitBillId != null) return 0.0
-        return tx.baseAmount
+        if (tx.isDeleted || tx.type != TransactionType.INCOME || !tx.isReimbursement) return 0.0
+        return remainingReimbursementBaseAmount(tx)
     }
 
     fun effectiveTotalExpensesBase(transactions: List<TransactionEntity>): Double {

@@ -717,7 +717,9 @@ fun AddEditTransactionScreen(
         val accountMap = remember(accounts) { accounts.associateBy { it.id } }
         val recentIncomeCandidates = remember(allTransactions) {
             allTransactions.filter {
-                !it.isDeleted && it.type == TransactionType.INCOME && it.splitBillId == null
+                !it.isDeleted &&
+                    it.type == TransactionType.INCOME &&
+                    LedgerCalculations.remainingReimbursementAmount(it) > 0.005
             }.sortedByDescending { it.timestamp }.take(40)
         }
         var selectedIncomeIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
@@ -736,8 +738,10 @@ fun AddEditTransactionScreen(
 
         val selectedSum = recentIncomeCandidates
             .filter { it.id in selectedIncomeIds }
-            .sumOf { it.amount }
-        val newNetExpense = (baseTx.amount - baseTx.reimbursedAmount - selectedSum).coerceAtLeast(0.0)
+            .sumOf { LedgerCalculations.remainingReimbursementAmount(it) }
+        val expenseRemaining = (baseTx.amount - baseTx.reimbursedAmount).coerceAtLeast(0.0)
+        val newNetExpense = (expenseRemaining - selectedSum).coerceAtLeast(0.0)
+        val leftoverAfterLink = (selectedSum - expenseRemaining).coerceAtLeast(0.0)
 
         AlertDialog(
             onDismissRequest = { showLinkRepaymentsDialog = false },
@@ -762,6 +766,13 @@ fun AddEditTransactionScreen(
                         fontWeight = FontWeight.Bold,
                         color = CoralAccent
                     )
+                    if (leftoverAfterLink > 0.005) {
+                        Text(
+                            text = "${FormatUtils.formatMoney(leftoverAfterLink, baseTx.currency)} left over — stays reusable for other expenses & offsets monthly total.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                     if (visibleCandidates.isEmpty()) {
                         Text(
                             text = "No unlinked recent income or reimbursement transactions found.",
@@ -817,11 +828,21 @@ fun AddEditTransactionScreen(
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
-                                    Text(
-                                        text = FormatUtils.formatMoney(incTx.amount, incTx.currency),
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Bold
-                                    )
+                                    val remainingRem = LedgerCalculations.remainingReimbursementAmount(incTx)
+                                    Column(horizontalAlignment = Alignment.End) {
+                                        Text(
+                                            text = FormatUtils.formatMoney(remainingRem, incTx.currency),
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        if (incTx.reimbursedAmount > 0.005) {
+                                            Text(
+                                                text = "of ${FormatUtils.formatMoney(incTx.amount, incTx.currency)} left",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
