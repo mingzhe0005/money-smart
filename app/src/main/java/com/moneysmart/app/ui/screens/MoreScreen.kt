@@ -15,9 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.AutoAwesome
@@ -29,18 +26,14 @@ import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.Savings
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.SystemUpdate
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,9 +43,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.moneysmart.app.BuildConfig
-import com.moneysmart.app.data.remote.AppUpdateChecker
-import com.moneysmart.app.data.remote.AppUpdateInfo
-import com.moneysmart.app.ui.components.EspressoPillButton
 import com.moneysmart.app.ui.components.ResponsiveContentBox
 import com.moneysmart.app.ui.components.SoftElevatedCard
 import com.moneysmart.app.ui.components.SquircleIconBadge
@@ -65,6 +55,7 @@ import com.moneysmart.app.ui.theme.IncomeGreen
 import com.moneysmart.app.ui.theme.PeachSoft
 import com.moneysmart.app.ui.theme.TransferBlue
 import com.moneysmart.app.ui.viewmodel.MoneySmartViewModel
+import kotlinx.coroutines.launch
 
 private data class MoreMenuItem(
     val title: String,
@@ -86,7 +77,9 @@ fun MoreScreen(
     onOpenBackup: () -> Unit,
     onOpenSettings: () -> Unit
 ) {
-    var showUpdateDialog by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var isCheckingUpdates by remember { mutableStateOf(false) }
 
     val menuItems = listOf(
         MoreMenuItem(
@@ -150,7 +143,18 @@ fun MoreScreen(
             subtitle = "Current v${BuildConfig.VERSION_NAME} · Check GitHub for new APK releases",
             icon = Icons.Rounded.SystemUpdate,
             accent = CoralAccent,
-            onClick = { showUpdateDialog = true }
+            onClick = {
+                if (!isCheckingUpdates) {
+                    isCheckingUpdates = true
+                    scope.launch {
+                        try {
+                            viewModel.checkForAppUpdateWithFeedback(context)
+                        } finally {
+                            isCheckingUpdates = false
+                        }
+                    }
+                }
+            }
         )
     )
 
@@ -236,151 +240,4 @@ fun MoreScreen(
             }
         }
     }
-
-    if (showUpdateDialog) {
-        AppUpdateDialog(
-            viewModel = viewModel,
-            onDismiss = { showUpdateDialog = false }
-        )
-    }
-}
-
-@Composable
-private fun AppUpdateDialog(
-    viewModel: MoneySmartViewModel,
-    onDismiss: () -> Unit
-) {
-    val context = LocalContext.current
-    var isLoading by remember { mutableStateOf(true) }
-    var updateInfo by remember { mutableStateOf<AppUpdateInfo?>(null) }
-    var errorText by remember { mutableStateOf<String?>(null) }
-    var checkSeq by remember { mutableStateOf(0) }
-
-    LaunchedEffect(checkSeq) {
-        isLoading = true
-        errorText = null
-        val res = viewModel.checkForAppUpdate()
-        res.fold(
-            onSuccess = { info -> updateInfo = info },
-            onFailure = { errorText = "Couldn't check for updates. Try again later." }
-        )
-        isLoading = false
-    }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text("App Updates", fontWeight = FontWeight.Bold)
-        },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Text(
-                    text = "Installed version: v${BuildConfig.VERSION_NAME}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                when {
-                    isLoading -> {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 12.dp),
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            CircularProgressIndicator(color = CoralAccent)
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text("Checking GitHub releases...")
-                        }
-                    }
-
-                    errorText != null -> {
-                        Text(
-                            text = errorText!!,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = CoralAccent
-                        )
-                    }
-
-                    updateInfo != null -> {
-                        val info = updateInfo!!
-                        val badgeColor = if (info.isUpdateAvailable) CoralAccent else IncomeGreen
-                        Surface(
-                            color = badgeColor.copy(alpha = 0.14f),
-                            shape = RoundedCornerShape(999.dp)
-                        ) {
-                            Text(
-                                text = if (info.isUpdateAvailable) {
-                                    "Update Available: v${info.latestVersion}"
-                                } else {
-                                    "You're up to date (v${info.latestVersion})"
-                                },
-                                color = badgeColor,
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                            )
-                        }
-
-                        if (info.releaseNotes.isNotBlank()) {
-                            Surface(
-                                color = MaterialTheme.colorScheme.surfaceVariant,
-                                shape = RoundedCornerShape(14.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text(
-                                    text = info.releaseNotes,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    modifier = Modifier.padding(12.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            val info = updateInfo
-            when {
-                !isLoading && errorText != null -> {
-                    EspressoPillButton(
-                        text = "Retry",
-                        onClick = { checkSeq++ }
-                    )
-                }
-
-                !isLoading && info != null && info.isUpdateAvailable -> {
-                    EspressoPillButton(
-                        text = "Download APK",
-                        onClick = { AppUpdateChecker.openApkOrReleasePage(context, info) }
-                    )
-                }
-
-                !isLoading && info != null -> {
-                    EspressoPillButton(
-                        text = "Check Again",
-                        onClick = { checkSeq++ }
-                    )
-                }
-            }
-        },
-        dismissButton = {
-            val info = updateInfo
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                val urlToOpen = info?.releasePageUrl ?: AppUpdateChecker.FALLBACK_RELEASE_URL
-                TextButton(onClick = { AppUpdateChecker.openUrl(context, urlToOpen) }) {
-                    Text(if (info?.isUpdateAvailable == true) "Release Page" else "Open Releases")
-                }
-                TextButton(onClick = onDismiss) {
-                    Text("Close")
-                }
-            }
-        }
-    )
 }

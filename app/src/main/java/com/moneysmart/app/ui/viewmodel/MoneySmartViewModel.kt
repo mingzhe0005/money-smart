@@ -1,7 +1,9 @@
 package com.moneysmart.app.ui.viewmodel
 
 import android.app.Application
+import android.content.Context
 import android.net.Uri
+import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.moneysmart.app.BuildConfig
@@ -400,4 +402,23 @@ class MoneySmartViewModel(application: Application) : AndroidViewModel(applicati
 
     suspend fun checkForAppUpdate(): Result<AppUpdateInfo> =
         container.appUpdateCoordinator.checkNowManual()
+
+    suspend fun checkForAppUpdateWithFeedback(context: Context) {
+        container.appUpdateCoordinator.checkNowManual().fold(
+            onSuccess = { info ->
+                if (info.isUpdateAvailable) {
+                    container.appUpdateCoordinator.showUpdatePrompt(info)
+                } else {
+                    Toast.makeText(context, "You're up to date", Toast.LENGTH_SHORT).show()
+                }
+            },
+            onFailure = {
+                Toast.makeText(
+                    context,
+                    "Couldn't check for updates. Try again later.",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        )
+    }
 }

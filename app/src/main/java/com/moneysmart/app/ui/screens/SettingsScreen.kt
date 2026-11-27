@@ -52,8 +52,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.moneysmart.app.BuildConfig
 import com.moneysmart.app.data.local.ThemeMode
-import com.moneysmart.app.data.remote.AppUpdateChecker
-import com.moneysmart.app.data.remote.AppUpdateInfo
 import com.moneysmart.app.data.remote.ProbedGeminiModel
 import com.moneysmart.app.security.AppLockManager
 import com.moneysmart.app.ui.components.EspressoPillButton
@@ -63,7 +61,6 @@ import com.moneysmart.app.ui.components.SoftElevatedCard
 import com.moneysmart.app.ui.components.WarmCurvedHeroHeader
 import com.moneysmart.app.ui.components.WarmSegmentedPillBar
 import com.moneysmart.app.ui.theme.CoralAccent
-import com.moneysmart.app.ui.theme.IncomeGreen
 import com.moneysmart.app.ui.theme.PeachSoft
 import com.moneysmart.app.ui.viewmodel.MoneySmartViewModel
 import com.moneysmart.app.util.FormatUtils
@@ -92,8 +89,6 @@ fun SettingsScreen(
     var showPinSetupDialog by remember { mutableStateOf(false) }
 
     var updateChecking by remember { mutableStateOf(false) }
-    var updateInfo by remember { mutableStateOf<AppUpdateInfo?>(null) }
-    var updateError by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(settings.geminiApiKey) {
         apiKey = settings.geminiApiKey
@@ -503,84 +498,21 @@ fun SettingsScreen(
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            EspressoPillButton(
-                                text = if (updateChecking) "Checking..." else "Check for Updates",
-                                enabled = !updateChecking,
-                                onClick = {
-                                    updateChecking = true
-                                    updateError = null
-                                    scope.launch {
-                                        val res = viewModel.checkForAppUpdate()
-                                        res.fold(
-                                            onSuccess = { info -> updateInfo = info },
-                                            onFailure = { updateError = "Couldn't check for updates. Try again later." }
-                                        )
+                        EspressoPillButton(
+                            text = if (updateChecking) "Checking..." else "Check for Updates",
+                            enabled = !updateChecking,
+                            onClick = {
+                                updateChecking = true
+                                scope.launch {
+                                    try {
+                                        viewModel.checkForAppUpdateWithFeedback(context)
+                                    } finally {
                                         updateChecking = false
                                     }
-                                },
-                                modifier = Modifier.weight(1f)
-                            )
-                            OutlinedButton(
-                                shape = RoundedCornerShape(18.dp),
-                                onClick = {
-                                    val url = updateInfo?.releasePageUrl ?: AppUpdateChecker.FALLBACK_RELEASE_URL
-                                    AppUpdateChecker.openUrl(context, url)
-                                },
-                                modifier = Modifier.height(48.dp)
-                            ) {
-                                Text(
-                                    text = "Releases Page",
-                                    maxLines = 1,
-                                    softWrap = false,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                        }
-                        if (updateError != null) {
-                            Text(
-                                text = updateError!!,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = CoralAccent
-                            )
-                        }
-                        val info = updateInfo
-                        if (info != null) {
-                            val badgeColor = if (info.isUpdateAvailable) CoralAccent else IncomeGreen
-                            Surface(
-                                color = badgeColor.copy(alpha = 0.14f),
-                                shape = RoundedCornerShape(999.dp)
-                            ) {
-                                Text(
-                                    text = if (info.isUpdateAvailable) {
-                                        "Update available: v${info.latestVersion}"
-                                    } else {
-                                        "You're up to date (v${info.latestVersion})"
-                                    },
-                                    color = badgeColor,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                                )
-                            }
-                            if (info.releaseNotes.isNotBlank()) {
-                                Text(
-                                    text = info.releaseNotes,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            if (info.isUpdateAvailable) {
-                                EspressoPillButton(
-                                    text = "Download Update (APK)",
-                                    onClick = { AppUpdateChecker.openApkOrReleasePage(context, info) },
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                            }
-                        }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
                 }
             }

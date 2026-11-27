@@ -245,6 +245,10 @@ class AppUpdateCoordinator(
         }
     }
 
+    fun showUpdatePrompt(info: AppUpdateInfo) {
+        _autoUpdatePrompt.value = info
+    }
+
     fun clearAutoPrompt() {
         _autoUpdatePrompt.value = null
     }
