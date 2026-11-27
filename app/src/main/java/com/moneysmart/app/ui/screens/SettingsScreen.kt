@@ -517,7 +517,7 @@ fun SettingsScreen(
                                         val res = viewModel.checkForAppUpdate()
                                         res.fold(
                                             onSuccess = { info -> updateInfo = info },
-                                            onFailure = { err -> updateError = err.message ?: "Update check failed." }
+                                            onFailure = { updateError = "Couldn't check for updates. Try again later." }
                                         )
                                         updateChecking = false
                                     }
@@ -558,7 +558,7 @@ fun SettingsScreen(
                                     text = if (info.isUpdateAvailable) {
                                         "Update available: v${info.latestVersion}"
                                     } else {
-                                        "Up to date (latest v${info.latestVersion})"
+                                        "You're up to date (v${info.latestVersion})"
                                     },
                                     color = badgeColor,
                                     style = MaterialTheme.typography.labelMedium,
@@ -576,7 +576,7 @@ fun SettingsScreen(
                             if (info.isUpdateAvailable) {
                                 EspressoPillButton(
                                     text = "Download Update (APK)",
-                                    onClick = { AppUpdateChecker.openUrl(context, info.apkDownloadUrl) },
+                                    onClick = { AppUpdateChecker.openApkOrReleasePage(context, info) },
                                     modifier = Modifier.fillMaxWidth()
                                 )
                             }

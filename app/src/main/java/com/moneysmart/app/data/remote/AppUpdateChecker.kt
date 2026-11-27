@@ -1,9 +1,19 @@
 package com.moneysmart.app.data.remote
 
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import com.moneysmart.app.BuildConfig
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.contentOrNull
@@ -51,6 +61,10 @@ class AppUpdateChecker(
         const val LATEST_RELEASE_API_URL = "https://api.github.com/repos/mingzhe0005/money-smart/releases/latest"
         const val FALLBACK_APK_URL = "https://github.com/mingzhe0005/money-smart/releases/latest/download/MoneySmart.apk"
         const val FALLBACK_RELEASE_URL = "https://github.com/mingzhe0005/money-smart/releases/latest"
+        const val PREFS_NAME = "updates"
+        const val KEY_LAST_SUCCESSFUL_START_MS = "last_successful_start_ms"
+        const val KEY_DISMISSED_VERSION = "dismissed_version"
+        const val CHECK_GUARD_MS = 60_000L
 
         private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
@@ -73,6 +87,21 @@ class AppUpdateChecker(
                 if (l != c) return l > c
             }
             return false
+        }
+
+        fun shouldSkipAutoCheck(
+            lastSuccessfulStartMs: Long,
+            nowMs: Long,
+            guardMs: Long = CHECK_GUARD_MS
+        ): Boolean {
+            return lastSuccessfulStartMs > 0L &&
+                nowMs >= lastSuccessfulStartMs &&
+                (nowMs - lastSuccessfulStartMs) < guardMs
+        }
+
+        fun shouldSuppressAutoPrompt(latestVersion: String, dismissedVersion: String?): Boolean {
+            if (dismissedVersion.isNullOrBlank()) return false
+            return !isNewerVersion(latestVersion, dismissedVersion)
         }
 
         private fun parseVersionParts(version: String): List<Int> {
@@ -116,13 +145,107 @@ class AppUpdateChecker(
             )
         }
 
-        fun openUrl(context: Context, url: String) {
-            runCatching {
+        fun openUrl(context: Context, url: String): Boolean {
+            return runCatching {
                 val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    if (context !is Activity) {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
                 }
                 context.startActivity(intent)
+                true
+            }.getOrDefault(false)
+        }
+
+        fun openApkOrReleasePage(context: Context, info: AppUpdateInfo): Boolean {
+            return openUrl(context, info.apkDownloadUrl) ||
+                openUrl(context, info.releasePageUrl) ||
+                openUrl(context, FALLBACK_RELEASE_URL)
+        }
+    }
+}
+
+/**
+ * Coordinates automatic foreground GitHub release checks (with a 60-second cooldown
+ * and per-version "Later" dismissal) as well as manual update checks that bypass both.
+ */
+class AppUpdateCoordinator(
+    context: Context,
+    private val checker: AppUpdateChecker,
+    private val currentVersionProvider: () -> String = { BuildConfig.VERSION_NAME },
+    private val clockMs: () -> Long = { System.currentTimeMillis() }
+) {
+    private val prefs = context.applicationContext
+        .getSharedPreferences(AppUpdateChecker.PREFS_NAME, Context.MODE_PRIVATE)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val lock = Any()
+    private var inFlightCheck: Deferred<Result<AppUpdateInfo>>? = null
+
+    private val _autoUpdatePrompt = MutableStateFlow<AppUpdateInfo?>(null)
+    val autoUpdatePrompt: StateFlow<AppUpdateInfo?> = _autoUpdatePrompt.asStateFlow()
+
+    fun onAppForegrounded() {
+        if (_autoUpdatePrompt.value != null) return
+        val checkDeferred: Deferred<Result<AppUpdateInfo>> = synchronized(lock) {
+            inFlightCheck?.let { return@synchronized it }
+            val now = clockMs()
+            val last = prefs.getLong(AppUpdateChecker.KEY_LAST_SUCCESSFUL_START_MS, 0L)
+            if (AppUpdateChecker.shouldSkipAutoCheck(last, now)) {
+                return
+            }
+            startCheckLocked(now)
+        }
+        scope.launch {
+            val info = checkDeferred.await().getOrNull() ?: return@launch
+            if (!info.isUpdateAvailable) return@launch
+            val dismissed = prefs.getString(AppUpdateChecker.KEY_DISMISSED_VERSION, null)
+            if (!AppUpdateChecker.shouldSuppressAutoPrompt(info.latestVersion, dismissed)) {
+                _autoUpdatePrompt.value = info
             }
         }
+    }
+
+    suspend fun checkNowManual(): Result<AppUpdateInfo> {
+        val checkDeferred: Deferred<Result<AppUpdateInfo>> = synchronized(lock) {
+            inFlightCheck ?: startCheckLocked(clockMs())
+        }
+        return checkDeferred.await()
+    }
+
+    private fun startCheckLocked(startMs: Long): Deferred<Result<AppUpdateInfo>> {
+        val deferred = scope.async {
+            val result = checker.checkLatestRelease(currentVersionProvider())
+            prefs.edit().apply {
+                if (result.isSuccess) {
+                    putLong(AppUpdateChecker.KEY_LAST_SUCCESSFUL_START_MS, startMs)
+                } else {
+                    remove(AppUpdateChecker.KEY_LAST_SUCCESSFUL_START_MS)
+                }
+            }.apply()
+            result
+        }
+        inFlightCheck = deferred
+        deferred.invokeOnCompletion {
+            synchronized(lock) {
+                if (inFlightCheck === deferred) {
+                    inFlightCheck = null
+                }
+            }
+        }
+        return deferred
+    }
+
+    fun dismissForLater(version: String) {
+        _autoUpdatePrompt.value = null
+        val normalized = AppUpdateChecker.normalizeVersion(version)
+        if (normalized.isBlank()) return
+        val dismissed = prefs.getString(AppUpdateChecker.KEY_DISMISSED_VERSION, null)
+        if (dismissed == null || AppUpdateChecker.isNewerVersion(normalized, dismissed)) {
+            prefs.edit().putString(AppUpdateChecker.KEY_DISMISSED_VERSION, normalized).apply()
+        }
+    }
+
+    fun clearAutoPrompt() {
+        _autoUpdatePrompt.value = null
     }
 }

@@ -262,7 +262,7 @@ private fun AppUpdateDialog(
         val res = viewModel.checkForAppUpdate()
         res.fold(
             onSuccess = { info -> updateInfo = info },
-            onFailure = { err -> errorText = err.message ?: "Unable to check for updates." }
+            onFailure = { errorText = "Couldn't check for updates. Try again later." }
         )
         isLoading = false
     }
@@ -319,7 +319,7 @@ private fun AppUpdateDialog(
                                 text = if (info.isUpdateAvailable) {
                                     "Update Available: v${info.latestVersion}"
                                 } else {
-                                    "Up to Date (v${info.latestVersion})"
+                                    "You're up to date (v${info.latestVersion})"
                                 },
                                 color = badgeColor,
                                 style = MaterialTheme.typography.labelMedium,
@@ -358,7 +358,7 @@ private fun AppUpdateDialog(
                 !isLoading && info != null && info.isUpdateAvailable -> {
                     EspressoPillButton(
                         text = "Download APK",
-                        onClick = { AppUpdateChecker.openUrl(context, info.apkDownloadUrl) }
+                        onClick = { AppUpdateChecker.openApkOrReleasePage(context, info) }
                     )
                 }
 

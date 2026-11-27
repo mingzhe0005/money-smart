@@ -11,10 +11,29 @@ class AppUpdateCheckerTest {
     @Test
     fun comparesSemanticVersionSegmentsNumerically() {
         assertTrue(AppUpdateChecker.isNewerVersion("v1.0.10", "1.0.9"))
+        assertTrue(AppUpdateChecker.isNewerVersion("1.10", "1.9"))
+        assertTrue(AppUpdateChecker.isNewerVersion("v1.0.20", "1.0.19"))
         assertFalse(AppUpdateChecker.isNewerVersion("1.0.10", "1.0.10"))
         assertFalse(AppUpdateChecker.isNewerVersion("v1.0.8", "1.0.10"))
         assertTrue(AppUpdateChecker.isNewerVersion("v1.1.0", "1.0.10"))
         assertTrue(AppUpdateChecker.isNewerVersion("v2.0.0", "1.9.9"))
+    }
+
+    @Test
+    fun skipsAutoCheckOnlyWithinSixtySecondsOfSuccessfulStart() {
+        assertFalse(AppUpdateChecker.shouldSkipAutoCheck(0L, 1_000_000L))
+        assertTrue(AppUpdateChecker.shouldSkipAutoCheck(1_000_000L, 1_000_000L))
+        assertTrue(AppUpdateChecker.shouldSkipAutoCheck(1_000_000L, 1_059_999L))
+        assertFalse(AppUpdateChecker.shouldSkipAutoCheck(1_000_000L, 1_060_000L))
+        assertFalse(AppUpdateChecker.shouldSkipAutoCheck(1_000_000L, 999_000L))
+    }
+
+    @Test
+    fun suppressesAutoPromptOnlyForDismissedOrOlderVersion() {
+        assertFalse(AppUpdateChecker.shouldSuppressAutoPrompt("1.0.20", null))
+        assertTrue(AppUpdateChecker.shouldSuppressAutoPrompt("1.0.20", "1.0.20"))
+        assertTrue(AppUpdateChecker.shouldSuppressAutoPrompt("1.0.19", "1.0.20"))
+        assertFalse(AppUpdateChecker.shouldSuppressAutoPrompt("1.0.21", "1.0.20"))
     }
 
     @Test

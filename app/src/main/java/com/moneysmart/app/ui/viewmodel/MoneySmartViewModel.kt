@@ -46,7 +46,6 @@ class MoneySmartViewModel(application: Application) : AndroidViewModel(applicati
     val moneyManagerImporter = container.moneyManagerImporter
     val geminiApiClient = container.geminiApiClient
     val notificationProcessor = container.notificationProcessor
-    private val appUpdateChecker = container.appUpdateChecker
 
     val settings: StateFlow<AppSettings> = settingsDataStore.settingsFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppSettings())
@@ -400,5 +399,5 @@ class MoneySmartViewModel(application: Application) : AndroidViewModel(applicati
         moneyManagerImporter.importFromUri(fileUri)
 
     suspend fun checkForAppUpdate(): Result<AppUpdateInfo> =
-        appUpdateChecker.checkLatestRelease(BuildConfig.VERSION_NAME)
+        container.appUpdateCoordinator.checkNowManual()
 }
