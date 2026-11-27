@@ -717,7 +717,7 @@ fun AddEditTransactionScreen(
         val accountMap = remember(accounts) { accounts.associateBy { it.id } }
         val recentIncomeCandidates = remember(allTransactions) {
             allTransactions.filter {
-                !it.isDeleted && it.type == TransactionType.INCOME && !it.isReimbursement
+                !it.isDeleted && it.type == TransactionType.INCOME && it.splitBillId == null
             }.sortedByDescending { it.timestamp }.take(40)
         }
         var selectedIncomeIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
@@ -764,7 +764,7 @@ fun AddEditTransactionScreen(
                     )
                     if (visibleCandidates.isEmpty()) {
                         Text(
-                            text = "No unlinked recent income transactions found.",
+                            text = "No unlinked recent income or reimbursement transactions found.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -808,7 +808,11 @@ fun AddEditTransactionScreen(
                                             fontWeight = FontWeight.Medium
                                         )
                                         Text(
-                                            text = "$accName · ${FormatUtils.formatDate(incTx.timestamp)}",
+                                            text = if (incTx.isReimbursement) {
+                                                "$accName · Reimbursement · ${FormatUtils.formatDate(incTx.timestamp)}"
+                                            } else {
+                                                "$accName · ${FormatUtils.formatDate(incTx.timestamp)}"
+                                            },
                                             style = MaterialTheme.typography.labelSmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )

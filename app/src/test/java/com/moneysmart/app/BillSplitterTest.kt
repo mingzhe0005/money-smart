@@ -68,4 +68,46 @@ class BillSplitterTest {
         assertEquals(40.0, txs.sumOf { LedgerCalculations.effectiveExpenseBaseAmount(it) }, 0.001)
         assertEquals(0.0, txs.sumOf { LedgerCalculations.effectiveIncomeBaseAmount(it) }, 0.001)
     }
+
+    @Test
+    fun linkingUnlinkedReimbursementToExpenseAvoidsDoubleCounting() {
+        val unlinkedExpense = TransactionEntity(
+            id = 20L,
+            type = TransactionType.EXPENSE,
+            amount = 20.0,
+            currency = "SGD",
+            baseAmount = 20.0,
+            accountId = 1L
+        )
+        val unlinkedReimb = TransactionEntity(
+            id = 21L,
+            type = TransactionType.INCOME,
+            amount = 8.0,
+            currency = "SGD",
+            baseAmount = 8.0,
+            accountId = 2L,
+            isReimbursement = true,
+            splitBillId = null
+        )
+
+        assertEquals(
+            12.0,
+            LedgerCalculations.effectiveTotalExpensesBase(listOf(unlinkedExpense, unlinkedReimb)),
+            0.001
+        )
+
+        val linkedExpense = unlinkedExpense.copy(
+            reimbursedAmount = 8.0,
+            reimbursedBaseAmount = 8.0,
+            splitBillId = 1L
+        )
+        val linkedReimb = unlinkedReimb.copy(splitBillId = 1L)
+
+        assertEquals(12.0, LedgerCalculations.effectiveExpenseBaseAmount(linkedExpense), 0.001)
+        assertEquals(
+            12.0,
+            LedgerCalculations.effectiveTotalExpensesBase(listOf(linkedExpense, linkedReimb)),
+            0.001
+        )
+    }
 }

@@ -982,7 +982,7 @@ class MoneyRepository(
 
             for (incId in incomeTxIds.distinct()) {
                 val incTx = transactionDao.getById(incId) ?: continue
-                if (incTx.isDeleted || incTx.type != TransactionType.INCOME || incTx.isReimbursement) continue
+                if (incTx.isDeleted || incTx.type != TransactionType.INCOME || incTx.splitBillId != null) continue
 
                 val amountInExpenseCurrency = if (incTx.currency.equals(expenseTx.currency, ignoreCase = true)) {
                     incTx.amount
