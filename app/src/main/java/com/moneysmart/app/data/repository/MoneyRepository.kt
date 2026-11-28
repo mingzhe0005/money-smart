@@ -559,6 +559,30 @@ class MoneyRepository(
         )
     }
 
+    suspend fun findRecentSameAmountCandidatesWithText(
+        amount: Double,
+        currency: String,
+        timestamp: Long,
+        windowMillis: Long = LedgerCalculations.TRANSFER_PAIRING_WINDOW_MILLIS
+    ): List<Pair<TransactionEntity, String>> {
+        val candidates = transactionDao.findPotentialDuplicates(
+            amount = amount,
+            currency = currency,
+            startMillis = timestamp - windowMillis,
+            endMillis = timestamp + windowMillis
+        )
+        if (candidates.isEmpty()) return emptyList()
+        return candidates.map { tx ->
+            val raw = tx.rawNotificationId?.let { rawNotificationDao.getById(it) }
+            val text = if (raw != null) {
+                "${raw.appName} ${raw.title} ${raw.text}".trim()
+            } else {
+                "${tx.merchant} ${tx.note}".trim()
+            }
+            tx to text
+        }
+    }
+
     suspend fun getExchangeRateToBase(txCurrency: String, baseCurrency: String): Double {
         if (txCurrency.equals(baseCurrency, ignoreCase = true)) return 1.0
         val cached = exchangeRateDao.getRate(baseCurrency.uppercase(), txCurrency.uppercase())

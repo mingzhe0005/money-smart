@@ -6,8 +6,10 @@ import com.moneysmart.app.data.local.entity.TransactionEntity
 import com.moneysmart.app.data.local.entity.TransactionType
 import com.moneysmart.app.data.repository.LedgerCalculations
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class LedgerAndDedupTest {
@@ -208,5 +210,319 @@ class LedgerAndDedupTest {
         assertEquals(1000.0, totalIncome, 0.001)
         // Net expenses: (50 - 50) + (30 - 2.50) + (60 - 30) = 57.50 (split repayment #7 not subtracted twice)
         assertEquals(57.50, totalExpenses, 0.001)
+    }
+
+    @Test
+    fun lexicalAccountGroundingRejectsUnmentionedWalletsAndSameBankCard() {
+        val ocbc = AccountEntity(id = 1L, name = "OCBC Bank", type = AccountType.BANK, currency = "SGD")
+        val mari = AccountEntity(id = 2L, name = "MariBank", type = AccountType.BANK, currency = "SGD")
+        val youTrip = AccountEntity(id = 3L, name = "YouTrip", type = AccountType.E_WALLET, currency = "SGD")
+        val ocbcCard = AccountEntity(
+            id = 4L,
+            name = "OCBC 365 Card",
+            type = AccountType.CREDIT_CARD,
+            currency = "SGD",
+            cardLast4 = "0624"
+        )
+        val all = listOf(ocbc, mari, youTrip, ocbcCard)
+
+        assertFalse(
+            LedgerCalculations.isAccountMentionedInNotification(
+                account = youTrip,
+                appName = "OCBC Digital",
+                packageName = "com.ocbc.mobile",
+                title = "FAST Transfer",
+                text = "You transferred SGD 232.00 to account ending 8888.",
+                allAccounts = all,
+                excludeAccount = ocbc
+            )
+        )
+        assertFalse(
+            LedgerCalculations.isAccountMentionedInNotification(
+                account = ocbcCard,
+                appName = "OCBC Digital",
+                packageName = "com.ocbc.mobile",
+                title = "FAST Transfer",
+                text = "You transferred SGD 232.00 to account ending 8888.",
+                allAccounts = all,
+                excludeAccount = ocbc
+            )
+        )
+        assertNull(
+            LedgerCalculations.findMentionedAccount(
+                accounts = all,
+                appName = "OCBC Digital",
+                packageName = "com.ocbc.mobile",
+                title = "FAST Transfer",
+                text = "You transferred SGD 232.00 to account ending 8888.",
+                excludeAccount = ocbc
+            )
+        )
+
+        val matchedDest = LedgerCalculations.findMentionedAccount(
+            accounts = all,
+            appName = "OCBC Digital",
+            packageName = "com.ocbc.mobile",
+            title = "FAST Transfer",
+            text = "You transferred SGD 232.00 to MariBank Savings.",
+            excludeAccount = ocbc
+        )
+        assertEquals(mari.id, matchedDest?.id)
+
+        val matchedCardPayment = LedgerCalculations.findMentionedAccount(
+            accounts = listOf(ocbc, ocbcCard),
+            appName = "OCBC Digital",
+            packageName = "com.ocbc.mobile",
+            title = "Bill Payment",
+            text = "Paid SGD 500.00 to Credit Card.",
+            excludeAccount = ocbc
+        )
+        assertEquals(ocbcCard.id, matchedCardPayment?.id)
+    }
+
+    @Test
+    fun transferPairingUnifiesOutgoingAndIncomingOwnBankAlertsAcrossOrders() {
+        val ocbc = AccountEntity(id = 1L, name = "OCBC Bank", type = AccountType.BANK, currency = "SGD")
+        val mari = AccountEntity(id = 2L, name = "MariBank", type = AccountType.BANK, currency = "SGD")
+        val youTrip = AccountEntity(id = 3L, name = "YouTrip", type = AccountType.E_WALLET, currency = "SGD")
+        val accountsById = listOf(ocbc, mari, youTrip).associateBy { it.id }
+        val t0 = 1_700_000_000_000L
+
+        // 1. Outgoing TRANSFER(OCBC -> null) + incoming INCOME(MariBank) -> TRANSFER(OCBC -> MariBank)
+        val outgoingUnresolved = TransactionEntity(
+            id = 101L,
+            type = TransactionType.TRANSFER,
+            amount = 232.0,
+            currency = "SGD",
+            baseAmount = 232.0,
+            accountId = ocbc.id,
+            toAccountId = null,
+            merchant = "OCBC",
+            timestamp = t0,
+            needsReview = true
+        )
+        val match1 = LedgerCalculations.findTransferCounterpart(
+            existingCandidates = listOf(outgoingUnresolved to "OCBC FAST transfer SGD 232.00"),
+            incomingType = TransactionType.INCOME,
+            incomingAccountId = mari.id,
+            incomingToAccountId = null,
+            incomingAmount = 232.0,
+            incomingCurrency = "SGD",
+            incomingTimestamp = t0 + 30_000L,
+            incomingText = "MariBank You received SGD 232.00",
+            incomingMerchant = "MariBank",
+            incomingNote = "Incoming transfer",
+            accountsById = accountsById
+        )
+        assertNotNull(match1)
+        assertEquals(ocbc.id, match1!!.sourceAccountId)
+        assertEquals(mari.id, match1.destAccountId)
+        assertTrue(match1.shouldUpdateExisting)
+
+        // 2. Outgoing TRANSFER(OCBC -> YouTrip [unverified]) + incoming INCOME(MariBank) -> corrects to OCBC -> MariBank
+        val outgoingMisrouted = TransactionEntity(
+            id = 102L,
+            type = TransactionType.TRANSFER,
+            amount = 232.0,
+            currency = "SGD",
+            baseAmount = 232.0,
+            accountId = ocbc.id,
+            toAccountId = youTrip.id,
+            merchant = "OCBC",
+            timestamp = t0
+        )
+        val match2 = LedgerCalculations.findTransferCounterpart(
+            existingCandidates = listOf(outgoingMisrouted to "OCBC You transferred SGD 232.00 via FAST"),
+            incomingType = TransactionType.INCOME,
+            incomingAccountId = mari.id,
+            incomingToAccountId = null,
+            incomingAmount = 232.0,
+            incomingCurrency = "SGD",
+            incomingTimestamp = t0 + 20_000L,
+            incomingText = "MariBank You received SGD 232.00",
+            incomingMerchant = "MariBank",
+            incomingNote = "Incoming transfer",
+            accountsById = accountsById
+        )
+        assertNotNull(match2)
+        assertEquals(ocbc.id, match2!!.sourceAccountId)
+        assertEquals(mari.id, match2.destAccountId)
+        assertTrue(match2.shouldUpdateExisting)
+
+        // 3. Outgoing EXPENSE with transfer phrasing + incoming INCOME(MariBank) -> TRANSFER(OCBC -> MariBank)
+        val outgoingExpense = TransactionEntity(
+            id = 103L,
+            type = TransactionType.EXPENSE,
+            amount = 232.0,
+            currency = "SGD",
+            baseAmount = 232.0,
+            accountId = ocbc.id,
+            merchant = "FAST Transfer",
+            timestamp = t0
+        )
+        val match3 = LedgerCalculations.findTransferCounterpart(
+            existingCandidates = listOf(outgoingExpense to "OCBC You transferred SGD 232.00 via FAST"),
+            incomingType = TransactionType.INCOME,
+            incomingAccountId = mari.id,
+            incomingToAccountId = null,
+            incomingAmount = 232.0,
+            incomingCurrency = "SGD",
+            incomingTimestamp = t0 + 15_000L,
+            incomingText = "MariBank You received SGD 232.00",
+            incomingMerchant = "MariBank",
+            incomingNote = "FAST deposit",
+            accountsById = accountsById
+        )
+        assertNotNull(match3)
+        assertEquals(ocbc.id, match3!!.sourceAccountId)
+        assertEquals(mari.id, match3.destAccountId)
+        assertTrue(match3.shouldUpdateExisting)
+
+        // 4. Reverse order: incoming INCOME(MariBank) first, then outgoing TRANSFER(OCBC -> null) or EXPENSE(PayNow)
+        val incomingFirst = TransactionEntity(
+            id = 104L,
+            type = TransactionType.INCOME,
+            amount = 232.0,
+            currency = "SGD",
+            baseAmount = 232.0,
+            accountId = mari.id,
+            merchant = "MariBank",
+            timestamp = t0,
+            isReimbursement = true
+        )
+        val match4a = LedgerCalculations.findTransferCounterpart(
+            existingCandidates = listOf(incomingFirst to "MariBank You received SGD 232.00"),
+            incomingType = TransactionType.TRANSFER,
+            incomingAccountId = ocbc.id,
+            incomingToAccountId = null,
+            incomingAmount = 232.0,
+            incomingCurrency = "SGD",
+            incomingTimestamp = t0 + 10_000L,
+            incomingText = "OCBC You transferred SGD 232.00",
+            incomingMerchant = "OCBC",
+            incomingNote = "FAST transfer",
+            accountsById = accountsById
+        )
+        assertNotNull(match4a)
+        assertEquals(ocbc.id, match4a!!.sourceAccountId)
+        assertEquals(mari.id, match4a.destAccountId)
+        assertTrue(match4a.shouldUpdateExisting)
+
+        val match4b = LedgerCalculations.findTransferCounterpart(
+            existingCandidates = listOf(incomingFirst to "MariBank You received SGD 232.00"),
+            incomingType = TransactionType.EXPENSE,
+            incomingAccountId = ocbc.id,
+            incomingToAccountId = null,
+            incomingAmount = 232.0,
+            incomingCurrency = "SGD",
+            incomingTimestamp = t0 + 10_000L,
+            incomingText = "OCBC PayNow transfer SGD 232.00",
+            incomingMerchant = "PayNow",
+            incomingNote = "PayNow transfer",
+            accountsById = accountsById
+        )
+        assertNotNull(match4b)
+        assertEquals(ocbc.id, match4b!!.sourceAccountId)
+        assertEquals(mari.id, match4b.destAccountId)
+        assertTrue(match4b.shouldUpdateExisting)
+
+        // 5. Existing TRANSFER(OCBC -> null) + incoming TRANSFER(OCBC -> MariBank) -> enriches destination
+        val match5 = LedgerCalculations.findTransferCounterpart(
+            existingCandidates = listOf(outgoingUnresolved to "OCBC FAST transfer SGD 232.00"),
+            incomingType = TransactionType.TRANSFER,
+            incomingAccountId = ocbc.id,
+            incomingToAccountId = mari.id,
+            incomingAmount = 232.0,
+            incomingCurrency = "SGD",
+            incomingTimestamp = t0 + 5_000L,
+            incomingText = "OCBC transferred SGD 232.00 to MariBank",
+            incomingMerchant = "OCBC",
+            incomingNote = "Transfer to MariBank",
+            accountsById = accountsById
+        )
+        assertNotNull(match5)
+        assertEquals(ocbc.id, match5!!.sourceAccountId)
+        assertEquals(mari.id, match5.destAccountId)
+        assertTrue(match5.shouldUpdateExisting)
+    }
+
+    @Test
+    fun transferPairingDoesNotFalseMatchRetailExpensesSameAccountOrOutsideWindow() {
+        val ocbc = AccountEntity(id = 1L, name = "OCBC Bank", type = AccountType.BANK, currency = "SGD")
+        val mari = AccountEntity(id = 2L, name = "MariBank", type = AccountType.BANK, currency = "SGD")
+        val accountsById = listOf(ocbc, mari).associateBy { it.id }
+        val t0 = 1_700_000_000_000L
+
+        // Retail dining charge on OCBC + friend PayNow repayment on MariBank 1 min later -> keep separate!
+        val diningExpense = TransactionEntity(
+            id = 201L,
+            type = TransactionType.EXPENSE,
+            amount = 50.0,
+            currency = "SGD",
+            baseAmount = 50.0,
+            accountId = ocbc.id,
+            merchant = "HAIDILAO",
+            timestamp = t0
+        )
+        assertNull(
+            LedgerCalculations.findTransferCounterpart(
+                existingCandidates = listOf(diningExpense to "OCBC SGD 50.00 was charged at HAIDILAO"),
+                incomingType = TransactionType.INCOME,
+                incomingAccountId = mari.id,
+                incomingToAccountId = null,
+                incomingAmount = 50.0,
+                incomingCurrency = "SGD",
+                incomingTimestamp = t0 + 60_000L,
+                incomingText = "MariBank Received SGD 50.00 from Alex",
+                incomingMerchant = "Alex",
+                incomingNote = "Dinner share",
+                accountsById = accountsById
+            )
+        )
+
+        // Same-account transfer/refund -> never pair with self
+        val ocbcTransfer = TransactionEntity(
+            id = 202L,
+            type = TransactionType.TRANSFER,
+            amount = 232.0,
+            currency = "SGD",
+            baseAmount = 232.0,
+            accountId = ocbc.id,
+            toAccountId = null,
+            merchant = "OCBC",
+            timestamp = t0
+        )
+        assertNull(
+            LedgerCalculations.findTransferCounterpart(
+                existingCandidates = listOf(ocbcTransfer to "OCBC FAST transfer SGD 232.00"),
+                incomingType = TransactionType.INCOME,
+                incomingAccountId = ocbc.id,
+                incomingToAccountId = null,
+                incomingAmount = 232.0,
+                incomingCurrency = "SGD",
+                incomingTimestamp = t0 + 30_000L,
+                incomingText = "OCBC Refund SGD 232.00",
+                incomingMerchant = "OCBC",
+                incomingNote = "Refund",
+                accountsById = accountsById
+            )
+        )
+
+        // Outside 5-minute window -> do not pair
+        assertNull(
+            LedgerCalculations.findTransferCounterpart(
+                existingCandidates = listOf(ocbcTransfer to "OCBC FAST transfer SGD 232.00"),
+                incomingType = TransactionType.INCOME,
+                incomingAccountId = mari.id,
+                incomingToAccountId = null,
+                incomingAmount = 232.0,
+                incomingCurrency = "SGD",
+                incomingTimestamp = t0 + 360_000L,
+                incomingText = "MariBank You received SGD 232.00",
+                incomingMerchant = "MariBank",
+                incomingNote = "Deposit",
+                accountsById = accountsById
+            )
+        )
     }
 }

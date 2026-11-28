@@ -209,11 +209,154 @@ class NotificationProcessor(
         val merchantName = parsed.merchant ?: raw.appName
 
         val (savedTx, accountName, categoryName) = recordMutex.withLock {
+            if (accounts.isEmpty()) {
+                val msg = "No active accounts available to record transaction."
+                repository.updateRawNotification(
+                    raw.copy(
+                        status = NotificationProcessStatus.FAILED,
+                        aiResponseJson = rawJson,
+                        errorMessage = msg
+                    )
+                )
+                return ProcessOutcome.PermanentFailure(msg)
+            }
+
+            val accountsById = accounts.associateBy { it.id }
+            val matchedAiAccount = parsed.accountId?.let { accountsById[it] }
+            val lexSource = LedgerCalculations.findMentionedAccount(
+                accounts = accounts,
+                appName = raw.appName,
+                packageName = raw.packageName,
+                title = raw.title,
+                text = raw.text
+            )
+            var matchedAccount = matchedAiAccount ?: lexSource
+            var sourceVerified = matchedAccount != null && LedgerCalculations.isAccountMentionedInNotification(
+                account = matchedAccount,
+                appName = raw.appName,
+                packageName = raw.packageName,
+                title = raw.title,
+                text = raw.text,
+                allAccounts = accounts
+            )
+
+            var rawToAccount = if (txType == TransactionType.TRANSFER) {
+                val aiDest = parsed.toAccountId?.let { id ->
+                    accounts.firstOrNull { it.id == id && it.id != matchedAccount?.id }
+                }
+                val aiDestVerified = aiDest != null && LedgerCalculations.isAccountMentionedInNotification(
+                    account = aiDest,
+                    appName = raw.appName,
+                    packageName = raw.packageName,
+                    title = raw.title,
+                    text = raw.text,
+                    allAccounts = accounts,
+                    excludeAccount = matchedAccount
+                )
+                if (aiDestVerified) {
+                    aiDest
+                } else {
+                    LedgerCalculations.findMentionedAccount(
+                        accounts = accounts,
+                        appName = raw.appName,
+                        packageName = raw.packageName,
+                        title = raw.title,
+                        text = raw.text,
+                        excludeAccount = matchedAccount
+                    )
+                }
+            } else {
+                null
+            }
+
+            // If AI mislabeled an incoming-only bank alert as TRANSFER (dest known or incoming wording, source unverified),
+            // treat it as an incoming event on the receiving bank so it won't debit an unrelated account and can pair cleanly.
+            var effectiveTxType = txType
+            if (txType == TransactionType.TRANSFER) {
+                if (!sourceVerified && rawToAccount != null) {
+                    val otherSource = LedgerCalculations.findMentionedAccount(
+                        accounts = accounts,
+                        appName = raw.appName,
+                        packageName = raw.packageName,
+                        title = raw.title,
+                        text = raw.text,
+                        excludeAccount = rawToAccount
+                    )
+                    if (otherSource != null) {
+                        matchedAccount = otherSource
+                        sourceVerified = true
+                    } else {
+                        matchedAccount = rawToAccount
+                        rawToAccount = null
+                        effectiveTxType = TransactionType.INCOME
+                    }
+                } else if (rawToAccount == null && matchedAccount != null && isLikelyIncomingOnlyAlert(raw.title, raw.text)) {
+                    effectiveTxType = TransactionType.INCOME
+                }
+            }
+
+            val incomingText = "${raw.appName} ${raw.title} ${raw.text}".trim()
+            val pairingCandidates = repository.findRecentSameAmountCandidatesWithText(
+                amount = parsed.amount,
+                currency = currency,
+                timestamp = raw.postedAt
+            )
+            val pairMatch = LedgerCalculations.findTransferCounterpart(
+                existingCandidates = pairingCandidates,
+                incomingType = effectiveTxType,
+                incomingAccountId = matchedAccount?.id,
+                incomingToAccountId = rawToAccount?.id,
+                incomingAmount = parsed.amount,
+                incomingCurrency = currency,
+                incomingTimestamp = raw.postedAt,
+                incomingText = incomingText,
+                incomingMerchant = merchantName,
+                incomingNote = parsed.note.orEmpty(),
+                accountsById = accountsById
+            )
+
+            if (pairMatch != null) {
+                val srcAcc = accountsById[pairMatch.sourceAccountId]
+                val dstAcc = accountsById[pairMatch.destAccountId]
+                val pairLabel = if (srcAcc != null && dstAcc != null) {
+                    "${srcAcc.name} → ${dstAcc.name}"
+                } else {
+                    pairMatch.existing.merchant
+                }
+                if (pairMatch.shouldUpdateExisting) {
+                    val updatedExisting = pairMatch.existing.copy(
+                        type = TransactionType.TRANSFER,
+                        accountId = pairMatch.sourceAccountId,
+                        toAccountId = pairMatch.destAccountId,
+                        categoryId = null,
+                        isReimbursement = false,
+                        merchant = pairLabel,
+                        needsReview = !settings.aiAutoRecordEnabled
+                    )
+                    repository.saveTransaction(updatedExisting)
+                    TransactionAlertNotifier.showRecordedTransactionAlert(
+                        context = context,
+                        transaction = updatedExisting,
+                        accountName = pairLabel,
+                        categoryName = ""
+                    )
+                }
+                repository.updateRawNotification(
+                    raw.copy(
+                        status = NotificationProcessStatus.DUPLICATE,
+                        aiResponseJson = rawJson,
+                        linkedTransactionId = pairMatch.existing.id,
+                        errorMessage = "Paired with transfer #${pairMatch.existing.id} ($pairLabel)"
+                    )
+                )
+                return ProcessOutcome.Duplicate(pairMatch.existing.id)
+            }
+
             val duplicate = repository.findPotentialDuplicate(
                 amount = parsed.amount,
                 currency = currency,
                 timestamp = raw.postedAt,
-                type = txType,
+                type = effectiveTxType,
                 merchant = merchantName,
                 sourcePackageName = raw.packageName
             )
@@ -229,37 +372,21 @@ class NotificationProcessor(
                 return ProcessOutcome.Duplicate(duplicate.id)
             }
 
-            if (accounts.isEmpty()) {
-                val msg = "No active accounts available to record transaction."
-                repository.updateRawNotification(
-                    raw.copy(
-                        status = NotificationProcessStatus.FAILED,
-                        aiResponseJson = rawJson,
-                        errorMessage = msg
-                    )
-                )
-                return ProcessOutcome.PermanentFailure(msg)
-            }
-
-            val matchedAccount = parsed.accountId?.let { id -> accounts.firstOrNull { it.id == id } }
             val resolvedAccount = matchedAccount ?: accounts.first()
-            var accountUnresolved = matchedAccount == null
+            var accountUnresolved = matchedAccount == null || !sourceVerified
 
-            val resolvedToAccount = if (txType == TransactionType.TRANSFER) {
-                val target = parsed.toAccountId?.let { id ->
-                    accounts.firstOrNull { it.id == id && it.id != resolvedAccount.id }
-                }
-                if (target == null) accountUnresolved = true
-                target
+            val resolvedToAccount = if (effectiveTxType == TransactionType.TRANSFER) {
+                if (rawToAccount == null) accountUnresolved = true
+                rawToAccount
             } else {
                 null
             }
 
             var categoryUnresolved = false
-            val resolvedCategory = if (txType == TransactionType.TRANSFER) {
+            val resolvedCategory = if (effectiveTxType == TransactionType.TRANSFER) {
                 null
             } else {
-                val expectedCatType = if (txType == TransactionType.INCOME) CategoryType.INCOME else CategoryType.EXPENSE
+                val expectedCatType = if (effectiveTxType == TransactionType.INCOME) CategoryType.INCOME else CategoryType.EXPENSE
                 val matched = parsed.categoryId?.let { id ->
                     categories.firstOrNull { it.id == id && it.type == expectedCatType }
                 }
@@ -281,11 +408,17 @@ class NotificationProcessor(
             val rateToBase = repository.getExchangeRateToBase(currency, settings.baseCurrency)
             val baseAmount = LedgerCalculations.computeBaseAmount(parsed.amount, rateToBase)
 
-            val isReimb = txType == TransactionType.INCOME &&
+            val isReimb = effectiveTxType == TransactionType.INCOME &&
                 CategoryOrganizer.isReimbursementCategoryName(resolvedCategory?.name)
 
+            val finalMerchant = if (effectiveTxType == TransactionType.TRANSFER && resolvedToAccount != null) {
+                "${resolvedAccount.name} → ${resolvedToAccount.name}"
+            } else {
+                merchantName
+            }
+
             val tx = TransactionEntity(
-                type = txType,
+                type = effectiveTxType,
                 amount = parsed.amount,
                 currency = currency,
                 exchangeRateToBase = rateToBase,
@@ -293,7 +426,7 @@ class NotificationProcessor(
                 accountId = resolvedAccount.id,
                 toAccountId = resolvedToAccount?.id,
                 categoryId = resolvedCategory?.id,
-                merchant = merchantName,
+                merchant = finalMerchant,
                 note = parsed.note ?: raw.text.take(120),
                 timestamp = raw.postedAt,
                 source = TransactionSource.AI_NOTIFICATION,
@@ -315,7 +448,12 @@ class NotificationProcessor(
                 )
             )
 
-            Triple(savedTx, resolvedAccount.name, resolvedCategory?.name.orEmpty())
+            val displayAccountName = if (effectiveTxType == TransactionType.TRANSFER && resolvedToAccount != null) {
+                "${resolvedAccount.name} → ${resolvedToAccount.name}"
+            } else {
+                resolvedAccount.name
+            }
+            Triple(savedTx, displayAccountName, resolvedCategory?.name.orEmpty())
         }
 
         TransactionAlertNotifier.showRecordedTransactionAlert(
@@ -338,6 +476,15 @@ class NotificationProcessor(
     }
 
     companion object {
+        private val INCOMING_ONLY_CUES = listOf("received", "credited", "deposited", "sent you", "paid you")
+        private val OUTGOING_CUES = listOf("transferred", "debited", "deducted", "charged", "paid to", "sent to")
+
+        fun isLikelyIncomingOnlyAlert(title: String, text: String): Boolean {
+            val lower = "$title $text".lowercase()
+            return INCOMING_ONLY_CUES.any { lower.contains(it) } &&
+                OUTGOING_CUES.none { lower.contains(it) }
+        }
+
         fun isLikelyOfflineError(message: String?): Boolean {
             if (message.isNullOrBlank()) return false
             val lower = message.lowercase()

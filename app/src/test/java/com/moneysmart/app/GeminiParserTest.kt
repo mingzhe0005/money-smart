@@ -1,5 +1,9 @@
 package com.moneysmart.app
 
+import com.moneysmart.app.data.local.entity.AccountEntity
+import com.moneysmart.app.data.local.entity.AccountType
+import com.moneysmart.app.data.local.entity.CategoryEntity
+import com.moneysmart.app.data.local.entity.CategoryType
 import com.moneysmart.app.data.remote.GeminiApiClient
 import com.moneysmart.app.data.remote.ProbeStatus
 import org.junit.Assert.assertEquals
@@ -143,5 +147,27 @@ class GeminiParserTest {
         assertEquals(ProbeStatus.UNAVAILABLE, GeminiApiClient.classifyProbeResult(404, "not found"))
         assertEquals(ProbeStatus.UNAVAILABLE, GeminiApiClient.classifyProbeResult(429, "free_tier limit: 0"))
         assertEquals(ProbeStatus.UNAVAILABLE, GeminiApiClient.classifyProbeResult(400, "no longer available"))
+    }
+
+    @Test
+    fun buildPromptIncludesSelfTransferAndAntiHallucinationRules() {
+        val prompt = GeminiApiClient.buildPrompt(
+            appName = "OCBC Digital",
+            packageName = "com.ocbc.mobile",
+            title = "FAST Transfer",
+            text = "You transferred SGD 232.00 to account ending 1234.",
+            baseCurrency = "SGD",
+            accounts = listOf(
+                AccountEntity(id = 1L, name = "OCBC Bank", type = AccountType.BANK, currency = "SGD"),
+                AccountEntity(id = 2L, name = "MariBank", type = AccountType.BANK, currency = "SGD"),
+                AccountEntity(id = 3L, name = "YouTrip", type = AccountType.E_WALLET, currency = "SGD")
+            ),
+            categories = listOf(
+                CategoryEntity(id = 10L, name = "Reimbursement", type = CategoryType.INCOME)
+            )
+        )
+        assertTrue(prompt.contains("Never classify an own-account transfer as \"INCOME\" or \"Reimbursement\""))
+        assertTrue(prompt.contains("NEVER guess an unrelated destination or source account"))
+        assertTrue(prompt.contains("use null if unclear"))
     }
 }
